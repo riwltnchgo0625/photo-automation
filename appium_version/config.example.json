@@ -1,0 +1,30 @@
+{
+  "udid": "CHANGE_TO_ADB_DEVICE_SERIAL",
+  "adb": "adb",
+  "server_url": "http://127.0.0.1:4723",
+  "gallery_package": "com.sec.android.gallery3d",
+  "album_dir": "/storage/emulated/0/Pictures/PhotoAssistTest",
+  "original_ids": [],
+  "ui_timeout": 20,
+  "generation_timeout": 180,
+  "save_timeout": 45,
+  "entry_steps": [
+    {"action": "click", "locator": {"by": "accessibility id", "value": "CHANGE_PHOTO_ASSIST"}},
+    {"action": "click", "locator": {"by": "xpath", "value": "//*[@text='스타일']"}}
+  ],
+  "save_locator": {"by": "xpath", "value": "//*[@text='다른 파일로 저장']"},
+  "styles": [
+    {
+      "name": "첫 번째 스타일 이름으로 변경",
+      "steps": [
+        {"action": "click", "locator": {"by": "accessibility id", "value": "CHANGE_STYLE_1"}}
+      ]
+    },
+    {
+      "name": "두 번째 스타일 이름으로 변경",
+      "steps": [
+        {"action": "click", "locator": {"by": "accessibility id", "value": "CHANGE_STYLE_2"}}
+      ]
+    }
+  ]
+}

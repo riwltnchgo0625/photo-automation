@@ -1,0 +1,8 @@
+**/__pycache__/
+**/*.pyc
+**/.venv/
+**/config.json
+**/run_data/
+**/run_*/
+**/appium_server.log
+.env
