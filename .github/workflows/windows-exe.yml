@@ -1,0 +1,27 @@
+name: Build Windows EXE
+on:
+  push:
+    branches: [main]
+    paths: ['desktop/**', '.github/workflows/windows-exe.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: windows-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          architecture: x64
+      - name: Test and package
+        shell: pwsh
+        run: ./desktop/build.ps1
+      - name: Upload Windows package
+        uses: actions/upload-artifact@v4
+        with:
+          name: PhotoAssistCollector-Windows
+          path: desktop/dist/PhotoAssistCollector-Windows.zip
+          retention-days: 30

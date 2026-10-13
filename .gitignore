@@ -6,3 +6,10 @@
 **/run_*/
 **/appium_server.log
 .env
+
+# Desktop packaging
+**/build/
+**/dist/
+**/*.spec
+**/app.lock
+

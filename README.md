@@ -1,158 +1,83 @@
-# Photo Assist 결과 수집기 — 두 가지 실행 방식
+# Photo Assist 결과 수집기
 
-각 폴더가 독립된 프로젝트입니다. 한 가지만 설치해도 됩니다.
+갤럭시에서 원본 사진마다 스타일을 적용하고, 결과를 **원본과 같은 갤러리 폴더에 저장**하는 Windows 프로그램입니다. 결과 사진의 품질은 사람이 평가합니다.
 
-| 구분 | appium_version | no_node_version |
-|---|---|---|
-| 자동화 도구 | Appium | Python uiautomator2(openatx) |
-| Node.js/npm | 필요 | 불필요 |
-| Docker | 불필요 | 불필요 |
-| Python | 필요 | 필요 |
-| ADB 및 USB 디버깅 | 필요 | 필요 |
-| PC의 Appium 서버 | 코드가 시작/종료 | 사용 안 함 |
-| 기기 내부 보조 서비스 | 필요 | 필요 |
-| 결과 보관 | 원본과 같은 갤러리 폴더 | 원본과 같은 갤러리 폴더 |
+## 사용자가 실행하는 방법
 
-Node 없는 버전은 ‘Appium에서 Node만 제거한 것’이 아니라 다른 라이브러리 구현입니다.
-보안 제한을 우회하지 않으며, 회사 사용 허용 여부는 별도입니다.
-두 버전 모두 최초 패키지 설치가 필요합니다. uiautomator2는 연결 시 기기에 보조 JAR 등을
-배치/실행할 수 있습니다. Node가 없다는 뜻이지 보조 서비스나 설치가 전혀 없다는 뜻은 아닙니다.
+1. 저장소 **Actions → Build Windows EXE → 성공한 실행 → Artifacts**에서 `PhotoAssistCollector-Windows`를 받습니다.
+2. 압축을 모두 풉니다. 안에 ZIP이 한 번 더 있다면 그것도 풉니다.
+3. `PhotoAssistCollector.exe`를 실행합니다. 옆의 `_internal` 폴더는 함께 유지합니다.
+4. 폰을 USB로 연결하고 USB 디버깅/PC 연결을 허용합니다.
+5. 프로그램에서 기기 찾기 → 처음 한 번 버튼 설정 → 원본 사진 선택 → 실행합니다.
 
-## 공통 동작
+Python·Node.js·Docker·Appium·Git의 별도 설치를 요구하지 않는 배포 구조입니다. PC에 따라 삼성 USB 드라이버는 필요할 수 있습니다.
+인터넷은 Photo Assist 생성에 필요합니다. 프로그램은 ADB와 Python 라이브러리를 묶어 배포합니다.
 
-선택한 원본 ID → Photo Assist → 스타일 → 생성 완료 → 다른 파일로 저장 →
-원본 폴더의 새 파일 확인 → 같은 원본 다시 열기 → 다음 스타일.
-원본/스타일 목록을 설정 파일에 지정합니다. 결과 사진은 PC로 복사하지 않습니다.
-실행 이력과 실패 화면은 PC의 run_data에 남깁니다.
-실패하면 멈추고 pending 기록을 남겨 중복 저장를 방지합니다.
-실제 기기 버튼 식별자 및 전체 스타일 목록은 아직 미확정입니다.
-기존 영상만으로 resource-id를 확인할 수 없으므로 CHANGE 설정을 반드시 보정해야 합니다.
-**실제 S26+ / Windows E2E 실행은 아직 검증하지 않았습니다.**
+**첫 실행에는 버튼 설정과 실기기 확인이 필요합니다. 현재 실제 S26+에서 전체 편집·저장 성공을 확인한 상태는 아닙니다.**
+처음에는 원본 1장·스타일 1개로 시험한 뒤 전체 실행으로 확장합니다.
 
-## 가상환경 없이 시작하기
+## 구성
 
-`no_node_version` 폴더에서 아래 명령을 실행합니다.
+| 파일 | 수정할 내용 |
+|---|---|
+| `desktop/app.py` | 창, 버튼 설정, 원본 선택, 진행 메시지 |
+| `desktop/automation.py` | 폰 연결, UI 검색, 반복 편집, 저장 확인 |
+| `desktop/tests/test_automation.py` | 중단·재개, 원본 유지, 저장 판정 테스트 |
+| `desktop/build.ps1` | Windows EXE 빌드와 패키징 검사 |
+
+일반 기능 수정은 앞의 두 Python 파일에서 합니다. 특정 폰의 버튼 정보는 코드 수정 대신 설정 화면에서 지정합니다.
+기존 `appium_version/`, `no_node_version/`는 이전 CLI 구현이며 비교·참고용으로 유지합니다. 앞으로 기본 실행 경로는 `desktop/`입니다.
+
+## 저장과 중단
+
+- 원본은 ID로 매번 다시 엽니다. 결과를 다음 스타일의 원본으로 사용하지 않습니다.
+- ‘다른 파일로 저장’ 후 원본과 같은 폴더에 새 이미지가 생겼는지 확인합니다.
+- 원본 삭제·이동·강제 덮어쓰기·갤러리 강제 종료·루팅 명령을 사용하지 않습니다.
+- 실패하거나 중지하면 불명확한 작업을 자동 재시도하지 않습니다.
+- 중지 버튼은 이후 조작을 멈추며 이미 전송된 AI 생성 요청을 취소하지는 않습니다.
+- 설정·진행 기록·오류 로그는 `%LOCALAPPDATA%\PhotoAssistCollector`에 저장합니다.
+- [새 작업]은 기존 이력을 백업하고 새 실행 계획을 시작합니다. 사진은 삭제하지 않습니다.
+
+## 현재 제한
+
+- UI 정보에 이름·설명이 없는 요소는 버튼 설정 목록에 나타나지 않을 수 있습니다.
+- 기본 스타일 화면 + 선택적인 목록 펼치기 버튼 + 가로 스와이프를 지원합니다. 세로 목록이나 스타일마다 다른 분류 경로는 추가 구현이 필요합니다.
+- 사진 조회와 원본 URI 열기는 실제 펌웨어 권한에 따라 확인해야 합니다.
+- 새 파일 연결은 저장 전후 사진 목록 차이를 이용합니다. 다른 이미지 생성·촬영·다운로드·동기화를 병행하면 안 됩니다.
+- 원본 보존 확인은 경로·파일 크기·수정시간 기반이며 사진 내용의 해시 검사는 아닙니다.
+- 화면 조회 시 uiautomator2의 기기 보조 프로그램이 배치·실행될 수 있습니다. 위험이 전혀 없다는 보장은 아닙니다.
+- 미서명 개발용 EXE입니다. 조직의 실행 정책이나 USB 제한을 자동 해제하지 않습니다.
+
+## 개발자 실행 및 빌드
+
+Windows x64, Python 3.12 기준:
 
 ```powershell
+cd desktop
 python -m pip install -r requirements.txt
-Copy-Item config.example.json config.json
+python app.py
 ```
 
-설정 파일 복사는 처음 한 번만 합니다. 이미 수정한 config.json을 덮어쓰지 마세요.
-ADB 연결과 버튼 설정을 완료한 후 `python collector.py run` 또는 run.bat으로 실행합니다.
-아래의 가상환경 방식은 패키지를 분리하고 싶은 경우 선택합니다.
-
-## Node 없는 버전 시작
-
-1. Android SDK Platform-Tools를 공식 사이트에서 받아 압축을 풀고 PATH에 등록합니다.
-   https://developer.android.com/tools/releases/platform-tools
-2. 폰의 USB 디버깅을 켜고 연결 승인 후 `adb devices -l`에서 device 상태를 확인합니다.
-3. `no_node_version` 폴더에서 PowerShell을 열고 실행합니다.
+테스트:
 
 ```powershell
-py -m venv .venv
-.\.venv\Scripts\python.exe -m pip install -r requirements.txt
-Copy-Item config.example.json config.json
+python -m unittest discover -s tests -v
 ```
 
-config.json의 udid를 실제 일련번호로 수정합니다.
-갤러리 패키지 기본값은 com.sec.android.gallery3d이며 실제와 다르면 수정합니다.
-이 버전은 PC에 별도 JDK나 Node.js를 설치하지 않아도 되는 구성입니다.
-Python 3.14에서 의존 패키지 설치 문제가 생기면 오류를 확인한 후 호환 버전을 결정합니다.
-현재 제공 환경에서는 Windows/Python 3.14 설치를 검증하지 않았습니다.
-
-## Appium 버전 시작
-
-`appium_version` 폴더를 열어 Python 가상환경/패키지/config.json을 위와 동일하게 준비합니다.
-추가로 Node.js LTS(Appium 요구 버전), JDK 17 및 Android SDK를 준비하고
-JAVA_HOME, ANDROID_HOME 및 platform-tools PATH를 설정합니다.
+EXE 빌드:
 
 ```powershell
-npm.cmd install -g appium@3
-appium.cmd driver install uiautomator2
-appium.cmd driver doctor uiautomator2
+./build.ps1
 ```
 
-이번 버전은 run/dump에서 Appium 서버를 자동 시작합니다. 기본 주소는 127.0.0.1:4723이며
-외부 네트워크에 서버를 공개하지 않습니다. 기존 서버가 있으면 /status를 확인해 재사용하고
-그 서버는 종료하지 않습니다. 직접 켠 서버만 정상 종료/Ctrl+C 처리 때 종료합니다.
-프로세스를 강제로 종료한 경우에는 서버가 남을 수 있습니다.
-Appium 서버 로그는 해당 폴더 appium_server.log에 남습니다.
+또는 GitHub Actions의 Build Windows EXE를 사용합니다. `desktop/` 변경을 main에 반영하면 자동 빌드됩니다.
+결과는 `desktop/dist/PhotoAssistCollector-Windows.zip`입니다. 빌드 환경의 모든 패키지 버전은 ZIP 안 `BUILD_VERSIONS.txt`에 기록합니다.
+EXE 자체의 모듈·ADB·기기 자료·창 초기화 검사도 빌드에 포함하지만, 실기기 E2E 검증을 대신하지는 않습니다.
 
-## 원본과 버튼 설정 — 두 버전 공통
+## 외부 프로젝트
 
-해당 버전 폴더에서:
+- [uiautomator2](https://github.com/openatx/uiautomator2)
+- [adbutils](https://github.com/openatx/adbutils)
+- [PyInstaller](https://pyinstaller.org/)
 
-```powershell
-.\.venv\Scripts\python.exe collector.py scan
-.\.venv\Scripts\python.exe collector.py dump
-```
-
-- scan: 전체 사진 ID/경로를 run_data/media.json에 기록. config.json의 album_dir와
-  original_ids를 실제 값으로 지정합니다. 예시 원본 ID를 임의로 쓰지 마세요.
-- dump: 현재 기기 화면 XML/PNG 저장. 원본 화면, 스타일 화면, 더보기 화면, 생성 완료 화면에서
-  각각 실행하여 버튼을 확인합니다. Node 없는 버전도 Inspector 없이 이 명령으로 확인 가능합니다.
-- entry_steps: 포토 어시스트 버튼 → 스타일 탭.
-- styles: **실제 기기의 모든 스타일을 순서대로 입력**. 예시 2개는 전체 목록이 아닙니다.
-  각 스타일 steps는 초기 스타일 화면부터 시작해 더보기/분류/스크롤/선택 순서를 포함합니다.
-- locator의 by: id(resource-id), accessibility id(content-desc), xpath 중 하나.
-  값은 실제 XML을 보고 넣습니다. 두 라이브러리의 XML은 차이가 있을 수 있어 각각 확인합니다.
-- `server_url`은 Appium 버전만 사용합니다.
-- 최초 약관·계정 로그인은 직접 완료합니다. Photo Assist 생성에 필요한 폰 인터넷도 유지합니다.
-
-더보기 클릭 및 스와이프 예시(실제 화면에 맞춰 수정):
-
-```json
-[
-  {"action": "click", "locator": {"by": "xpath", "value": "//*[@text='더보기']"}},
-  {"action": "swipe", "points": [0.85, 0.82, 0.20, 0.82]},
-  {"action": "click", "locator": {"by": "id", "value": "실제 resource-id"}}
-]
-```
-
-스와이프는 화면 너비/높이 대비 비율입니다. 사진 영역이 아닌 스타일 목록에 맞춰야 합니다.
-
-## 한 번에 실행
-
-설치 및 설정이 끝난 후 폰을 USB 연결하고 잠금 해제한 뒤 각 폴더의 `run.bat`을 더블클릭합니다.
-가상환경은 선택 사항입니다. run.bat은 .venv가 있으면 그 파이썬을, 없으면 PATH의 python을 사용합니다. 두 버전을 같은 폰에 동시에 실행하지 마세요.
-먼저 원본 1장/스타일 1개로 설정하여 실제 저장 위치와 원본 재진입부터 확인하세요.
-기능 품질은 사람이 판단합니다. 프로그램은 새 파일 저장을 확인할 뿐 정성평가하지 않습니다.
-
-실행 목록만 확인할 때:
-
-```powershell
-.\.venv\Scripts\python.exe collector.py plan
-```
-
-## 기록과 복구
-
-run_data/state.json에 완료 결과 경로/소요시간과 pending을 기록합니다.
-동일 설정의 재실행은 완료된 항목을 건너뜁니다.
-pending이 있으면 자동 재생성하지 않습니다. 갤러리에서 해당 스타일 결과의 유무를 확인하세요.
-결과가 없다는 것을 확인한 경우에만 state.json을 백업하고 pending을 null로 바꿔 재시도합니다.
-이미 저장됐다면 완료 기록과 결과를 대조하여 복구해야 합니다. 상태 파일을 무작정 지우지 마세요.
-설정이 바뀌면 다른 --work 폴더로 새 작업을 시작하되 기존 결과와 중복될 수 있습니다.
-두 버전의 상태는 별개이므로 한쪽 완료 이력이 다른 쪽 실행을 막지 않습니다.
-
-## 제한
-
-- 저장 직전/직후 MediaStore 차이로 결과를 연결합니다. 카메라 촬영·사진 다운로드·동기화를
-  병행하지 마세요. 다른 작업이 만든 단일 사진을 결과로 오인할 가능성이 있습니다.
-- 원본과 다른 폴더 저장, 원본 메타데이터 변경, 여러 새 이미지 발생 시 중단합니다.
-- MediaStore 조회/원본 content URI 열기는 기기 권한과 펌웨어에 따라 확인이 필요합니다.
-- 원본 보존 확인은 경로/크기/수정시간 기반이며 이미지 해시 비교는 아닙니다.
-- 생성 실패/적용 불가 스타일/추가 팝업은 자동 우회하지 않고 시간 초과로 중단합니다.
-- run_data와 config.json에는 개인 경로와 단말 정보가 있으므로 공개 저장소에서 제외합니다.
-
-## 테스트
-
-각 버전 폴더에서 `python -m unittest -v`를 실행합니다.
-저장 판정 테스트와 백엔드 모의 테스트는 기기 없이 수행되며 실제 기기 성공을 보장하지 않습니다.
-
-## 공식 참고자료
-
-- https://github.com/openatx/uiautomator2
-- https://github.com/appium/appium-uiautomator2-driver
-- https://github.com/appium/python-client
-- https://appium.io/docs/en/latest/quickstart/requirements/
+관련 패키지의 라이선스와 고지는 배포 폴더 `licenses/`에 포함합니다.
