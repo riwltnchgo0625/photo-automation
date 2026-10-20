@@ -1,2 +1,0 @@
-uiautomator2==3.7.0
-lxml>=5,<7

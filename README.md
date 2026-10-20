@@ -26,7 +26,7 @@ Python·Node.js·Docker·Appium·Git의 별도 설치를 요구하지 않는 배
 | `desktop/build.ps1` | Windows EXE 빌드와 패키징 검사 |
 
 일반 기능 수정은 앞의 두 Python 파일에서 합니다. 특정 폰의 버튼 정보는 코드 수정 대신 설정 화면에서 지정합니다.
-기존 `appium_version/`, `no_node_version/`는 이전 CLI 구현이며 비교·참고용으로 유지합니다. 앞으로 기본 실행 경로는 `desktop/`입니다.
+이 저장소는 Python `uiautomator2` 기반의 `desktop/` 버전 하나만 사용합니다. Appium 서버, Node.js, Docker는 필요하지 않습니다.
 
 ## 저장과 중단
 

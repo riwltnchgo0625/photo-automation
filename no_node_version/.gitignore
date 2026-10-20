@@ -1,7 +1,0 @@
-.venv/
-__pycache__/
-config.json
-run_data/
-run_*/
-
-appium_server.log
