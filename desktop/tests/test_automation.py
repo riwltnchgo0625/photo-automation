@@ -13,6 +13,7 @@ XML = '''<hierarchy><node text="다른 파일로 저장" content-desc="save's bu
 resource-id="pkg:id/save" enabled="true" bounds="[10,20][110,80]"/></hierarchy>'''
 PROFILE = {'assist': {'field': 'text', 'value': 'assist'},
            'style_tab': {'field': 'text', 'value': 'style'},
+           'generate': {'field': 'content-desc', 'value': 'generate'},
            'save': {'field': 'text', 'value': 'save'}, 'more': None,
            'styles': [{'name': 'A', 'selector': {'field': 'text', 'value': 'A'}},
                       {'name': 'B', 'selector': {'field': 'text', 'value': 'B'}}]}
@@ -84,12 +85,48 @@ class SelectorTests(unittest.TestCase):
 
 
 class RunTests(unittest.TestCase):
+    # 예전 설정에는 generate 키가 없습니다. 폰을 조작하기 전에 등록 안내로 멈춰야 합니다.
+    def test_missing_generate_stops_before_phone_access(self):
+        for value in ('missing', None):
+            profile = dict(PROFILE)
+            if value == 'missing':
+                profile.pop('generate')
+            else:
+                profile['generate'] = value
+            phone = FakePhone()
+            with tempfile.TemporaryDirectory() as d:
+                with patch.object(phone, 'photos') as photos:
+                    with self.assertRaisesRegex(ValueError, '생성 버튼 지정'):
+                        execute(phone, profile, [ORIGINAL], FastStop(), lambda _: None, Path(d))
+                    photos.assert_not_called()
+                self.assertFalse((Path(d) / 'progress.json').exists())
+            self.assertEqual(phone.opened, [])
+            self.assertEqual(phone.clicks, [])
+
+    # 생성 버튼을 찾지 못한 경우 저장 클릭으로 넘어가면 안 됩니다.
+    def test_generate_failure_does_not_save(self):
+        phone = FakePhone()
+        click = phone.click
+        def fail_generate(selector, stop, timeout=20):
+            if selector == PROFILE['generate']:
+                raise RuntimeError('생성 버튼 없음')
+            click(selector, stop, timeout)
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(phone, 'click', side_effect=fail_generate):
+                with self.assertRaisesRegex(RuntimeError, '생성 버튼 없음'):
+                    execute(phone, PROFILE, [ORIGINAL], FastStop(), lambda _: None, Path(d))
+            self.assertNotIn('save', phone.clicks)
+            state = json.loads((Path(d) / 'progress.json').read_text())
+            self.assertIsNotNone(state['pending'])
+            self.assertEqual(state['done'], {})
+
     def test_each_style_reopens_original_and_resume_skips_done(self):
         phone = FakePhone()
         with tempfile.TemporaryDirectory() as d:
             execute(phone, PROFILE, [ORIGINAL], FastStop(), lambda _: None, Path(d))
             self.assertEqual(phone.opened, ['1', '1'])
-            self.assertEqual(phone.clicks, ['assist', 'style', 'A', 'save', 'assist', 'style', 'B', 'save'])
+            self.assertEqual(phone.clicks, ['assist', 'style', 'A', 'generate', 'save',
+                                            'assist', 'style', 'B', 'generate', 'save'])
             state = json.loads((Path(d) / 'progress.json').read_text())
             self.assertIsNone(state['pending'])
             self.assertEqual(len(state['done']), 2)

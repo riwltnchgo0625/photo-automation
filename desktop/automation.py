@@ -250,9 +250,9 @@ class Phone:
 def validate(profile, originals):
     if not originals or not profile.get('styles'):
         raise ValueError('원본 사진과 스타일을 각각 하나 이상 선택해줘.')
-    for key in ('assist', 'style_tab', 'save'):
+    for key in ('assist', 'style_tab', 'generate', 'save'):
         if not profile.get(key):
-            raise ValueError('버튼 설정이 필요해: ' + key)
+            raise ValueError('버튼 설정이 필요해: ' + ('생성 버튼 지정' if key == 'generate' else key))
     names = [s['name'] for s in profile['styles']]
     if len(names) != len(set(names)):
         raise ValueError('스타일 이름이 중복돼 있어.')
@@ -324,8 +324,11 @@ def execute(phone, profile, originals, stop, emit, work):
                 raise RuntimeError('원본 정보가 변경되어 중단했어.')
             started = time.monotonic()
             phone.click(style['selector'], stop)
-            # 스타일 클릭 후 저장 버튼이 나타나면 생성 완료로 간주하여 누릅니다.
-            # 180은 최대 탐색 대기 초입니다. 별도의 생성 버튼/저장 확인 팝업 처리는 현재 없습니다.
+            # 스타일 선택만으로 생성되지 않으므로 등록한 생성 버튼을 한 번 누릅니다.
+            # 버튼 이름이 바뀌면 코드 대신 버튼 설정을 다시 지정합니다.
+            phone.click(profile['generate'], stop)
+            # 생성 요청 후 저장 버튼이 활성화될 때까지 최대 180초 기다립니다.
+            # 느린 생성으로 시간 초과가 나면 아래 timeout을 조정합니다. 추가 확인 팝업은 별도 구현입니다.
             phone.click(profile['save'], stop, timeout=180)
             # 저장 클릭 후 새 파일 확인 제한(초)입니다. 저장이 느린 기기라면 이 값을 조정합니다.
             # 파일을 저장하는 명령은 갤러리 UI가 수행하며 이 코드는 저장 여부만 확인합니다.

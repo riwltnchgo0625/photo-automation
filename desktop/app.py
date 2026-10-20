@@ -51,7 +51,8 @@ class App(tk.Tk):
         # more=선택적 목록 펼치기, styles=순서대로 실행할 스타일 목록입니다.
         # None은 미지정입니다. 기존 buttons.json이 있으면 아래에서 그 값으로 덮어씁니다.
         # 기본값만 수정해도 이미 저장된 사용자의 설정이 자동으로 바뀌지는 않습니다.
-        self.profile = {'assist': None, 'style_tab': None, 'save': None, 'more': None, 'styles': []}
+        # generate=생성 버튼. 예전 설정은 유지하고 이 버튼만 추가 등록합니다.
+        self.profile = {'assist': None, 'style_tab': None, 'generate': None, 'save': None, 'more': None, 'styles': []}
         try:
             if self.profile_path.exists():
                 self.profile.update(json.loads(self.profile_path.read_text(encoding='utf-8')))
@@ -143,8 +144,10 @@ class App(tk.Tk):
         assignments.pack(fill='x')
         # key는 내부 설정 키, label은 화면의 이름입니다.
         # lambda k=key는 각 버튼에 해당 키를 고정합니다. 없애면 모두 마지막 키를 가리킬 수 있습니다.
-        for key, label in [('assist', '포토 어시스트'), ('style_tab', '스타일 탭'), ('save', '다른 파일로 저장'), ('more', '목록 펼치기(선택)')]:
+        for key, label in [('assist', '포토 어시스트'), ('style_tab', '스타일 탭'), ('generate', '생성 버튼'), ('save', '다른 파일로 저장')]:
             self.button(assignments, label + ' 지정', lambda k=key: self.assign(k), side='left', padx=(0, 5))
+        # 선택 기능은 다음 줄에 배치해 작은 창에서도 버튼이 잘리지 않게 합니다.
+        self.button(settings, '목록 펼치기(선택) 지정', lambda: self.assign('more'), anchor='w', pady=(5, 0))
         self.button(settings, '목록 펼치기 설정 해제', lambda: self.assign('more', clear=True), anchor='w', pady=5)
         self.mapping = tk.StringVar()
         ttk.Label(settings, textvariable=self.mapping, wraplength=900).pack(anchor='w', pady=4)
@@ -331,7 +334,7 @@ class App(tk.Tk):
     def refresh_profile(self, save=False):
         if save:
             save_json(self.profile_path, self.profile)
-        labels = [('assist', '포토 어시스트'), ('style_tab', '스타일'), ('save', '저장'), ('more', '목록 펼치기')]
+        labels = [('assist', '포토 어시스트'), ('style_tab', '스타일'), ('generate', '생성'), ('save', '저장'), ('more', '목록 펼치기')]
         self.mapping.set(' / '.join(name + ': ' + (self.profile.get(k) or {}).get('value', '미지정') for k, name in labels))
         self.style_list.delete(0, 'end')
         for s in self.profile['styles']:
@@ -430,7 +433,9 @@ HELP = '''처음 한 번
 5. 스타일 화면에서 목록을 읽어 각 스타일 버튼을 등록해줘.
    목록을 가로로 넘겨야 한다면 초기 목록부터 왼쪽으로 넘긴 횟수도 입력해줘.
    매번 더보기/분류 버튼을 눌러야 한다면 [목록 펼치기]로 지정할 수 있어.
-6. 폰에서 테스트 사진에 스타일 하나를 직접 생성하고, 결과 화면의
+6. 폰에서 스타일 하나를 선택한 뒤 화면의 버튼을 다시 읽어.
+   ‘생성’ 항목을 선택하고 [생성 버튼 지정]을 눌러줘.
+7. 폰에서 직접 [생성]을 누르고 기다린 다음, 결과 화면의
    ‘다른 파일로 저장’ 버튼을 읽어서 저장 버튼으로 지정해줘.
    다른 화면에서는 같은 역할의 버튼 정보가 달라질 수 있어.
 
