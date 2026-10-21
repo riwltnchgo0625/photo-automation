@@ -18,21 +18,43 @@ from automation import Phone, Stopped, app_data, devices, execute, save_json, sc
 
 # 디자인 수정: 색상은 THEME, 글꼴·여백·창 크기는 아래 값 변경.
 THEME = {
-    'background': '#071525',
-    'card': '#102237',
-    'input': '#0B1B2D',
-    'hero': '#153D65',
-    'accent': '#4D8BFA',
-    'hover': '#659CFF',
-    'text': '#F2F6FC',
-    'muted': '#A5B7CD',
-    'border': '#29415B',
-    'disabled': '#6C8199',
+    'background': '#0C0C0C',
+    'card': '#191919',
+    'input': '#111111',
+    'hero': '#2C2C2C',
+    'accent': '#F5F5F5',
+    'hover': '#D4D4D4',
+    'text': '#F5F5F5',
+    'muted': '#A3A3A3',
+    'border': '#333333',
+    'disabled': '#737373',
 }
 FONT_FAMILY = '맑은 고딕'
 FONT_SIZE = 10
 PAGE_PAD = 20
-WINDOW_SIZE = '1100x900'
+WINDOW_SIZE = '1240x940'
+CARD_RADIUS = 22
+
+
+# 둥근 카드: 테두리는 Canvas, 내부 배치는 Frame에서 처리.
+class Card(tk.Canvas):
+    def __init__(self, parent, color=None, **kwargs):
+        self.color = color or THEME['card']
+        super().__init__(parent, background=THEME['background'], highlightthickness=0, **kwargs)
+        self.body = tk.Frame(self, background=self.color)
+        self.window = self.create_window(18, 16, anchor='nw', window=self.body)
+        self.bind('<Configure>', self.redraw)
+
+    def redraw(self, event):
+        w, h, r = event.width-1, event.height-1, CARD_RADIUS
+        r = min(r, w/2, h/2)
+        self.delete('shape')
+        self.create_polygon(r, 1, w-r, 1, w, 1, w, r, w, h-r, w, h,
+                            w-r, h, r, h, 1, h, 1, h-r, 1, r, 1, 1,
+                            smooth=True, splinesteps=24, fill=self.color,
+                            outline=THEME['border'], tags='shape')
+        self.tag_lower('shape')
+        self.itemconfigure(self.window, width=max(1,w-36), height=max(1,h-32))
 
 
 class App(tk.Tk):
@@ -40,8 +62,9 @@ class App(tk.Tk):
         super().__init__()
         self.title('Photo Assist · 스타일 결과 수집')
         # 창 크기: 가로 × 세로. 최소 크기는 아래 minsize에서 변경.
-        self.geometry(WINDOW_SIZE)
-        self.minsize(1000, 820)
+        width, height = map(int, WINDOW_SIZE.split('x'))
+        self.minsize(1000, 640)
+        self.geometry(f'{min(width, self.winfo_screenwidth()-40)}x{min(height, self.winfo_screenheight()-80)}')
         self.store = app_data()
         self.profile_path = self.store / 'buttons.json'
         # 버튼·스타일 기본값. 기존 buttons.json이 있으면 저장된 설정을 불러오기.
@@ -74,7 +97,7 @@ class App(tk.Tk):
         self.option_add('*TCombobox*Listbox.background', c['input'])
         self.option_add('*TCombobox*Listbox.foreground', c['text'])
         self.option_add('*TCombobox*Listbox.selectBackground', c['accent'])
-        self.option_add('*TCombobox*Listbox.selectForeground', c['text'])
+        self.option_add('*TCombobox*Listbox.selectForeground', c['background'])
         style = ttk.Style(self)
         style.theme_use('clam')
         style.configure('.', font=(FONT_FAMILY, FONT_SIZE), background=c['card'], foreground=c['text'])
@@ -86,28 +109,27 @@ class App(tk.Tk):
         style.configure('Title.TLabel', background=c['hero'], foreground=c['text'], font=(FONT_FAMILY, 24, 'bold'))
         style.configure('Muted.TLabel', foreground=c['muted'])
         style.configure('TButton', background=c['input'], foreground=c['text'],
-                        bordercolor=c['border'], padding=(12, 8), relief='flat')
+                        bordercolor=c['border'], lightcolor=c['input'], darkcolor=c['input'], borderwidth=0, padding=(12, 8), relief='flat')
         style.map('TButton', background=[('disabled', c['card']), ('active', c['hero'])],
                   foreground=[('disabled', c['disabled'])])
-        style.configure('Accent.TButton', background=c['accent'], foreground=c['text'])
+        style.configure('Accent.TButton', background=c['accent'], foreground=c['background'], font=(FONT_FAMILY, FONT_SIZE, 'bold'))
+        style.configure('Vertical.TScrollbar', background=c['border'], troughcolor=c['background'],
+                        arrowcolor=c['muted'], borderwidth=0, arrowsize=12)
         style.map('Accent.TButton', background=[('disabled', c['card']), ('active', c['hover'])],
-                  foreground=[('disabled', c['disabled'])])
-        style.configure('TNotebook', background=c['background'], borderwidth=0)
-        style.configure('TNotebook.Tab', background=c['background'], foreground=c['muted'], padding=(16, 10))
-        style.map('TNotebook.Tab', background=[('selected', c['card'])], foreground=[('selected', c['text'])])
+                  foreground=[('disabled', c['disabled']), ('!disabled', c['background'])])
         for name in ('TEntry', 'TCombobox', 'TSpinbox'):
             style.configure(name, fieldbackground=c['input'], background=c['input'],
-                            foreground=c['text'], arrowcolor=c['muted'], bordercolor=c['border'], padding=6)
+                            foreground=c['text'], arrowcolor=c['muted'], bordercolor=c['border'], lightcolor=c['border'], darkcolor=c['border'], padding=6)
             style.map(name, fieldbackground=[('disabled', c['card']), ('readonly', c['input'])],
                       foreground=[('disabled', c['disabled']), ('readonly', c['text'])],
-                      selectbackground=[('!disabled', c['accent'])], selectforeground=[('!disabled', c['text'])])
+                      selectbackground=[('!disabled', c['accent'])], selectforeground=[('!disabled', c['background'])])
 
     # tk 목록·도움말·로그 색상 적용. ttk 스타일과 별도 설정.
     def style_text_widgets(self, parent):
         for widget in parent.winfo_children():
             if isinstance(widget, (tk.Listbox, tk.Text)):
                 widget.configure(background=THEME['input'], foreground=THEME['text'],
-                                 selectbackground=THEME['accent'], selectforeground=THEME['text'],
+                                 selectbackground=THEME['accent'], selectforeground=THEME['background'],
                                  borderwidth=0, highlightthickness=1,
                                  highlightbackground=THEME['border'], highlightcolor=THEME['accent'],
                                  font=(FONT_FAMILY, FONT_SIZE))
@@ -123,87 +145,173 @@ class App(tk.Tk):
         self.buttons.append(b)
         return b
 
-    # PC 화면 구성. 버튼 문구와 배치는 여기서 수정.
+    # 화면 구성: 왼쪽 메뉴 / 상단 현황 / 본문 / 실행 기록.
     def build_ui(self):
-        header = ttk.Frame(self, style='Hero.TFrame', padding=PAGE_PAD)
-        header.pack(fill='x', padx=PAGE_PAD, pady=(PAGE_PAD, 12))
-        ttk.Label(header, text='PHOTO ASSIST  /  QA TOOL', style='Hero.TLabel').pack(anchor='w')
-        ttk.Label(header, text='스타일 결과 수집', style='Title.TLabel').pack(anchor='w', pady=(4, 6))
-        ttk.Label(header, text='원본 선택 · 스타일 생성 · 같은 폴더 저장', style='Hero.TLabel').pack(anchor='w')
-        top = ttk.Frame(self, padding=(PAGE_PAD, 12))
-        top.pack(fill='x', padx=PAGE_PAD, pady=(0, 12))
-        device_row = ttk.Frame(top)
-        device_row.pack(fill='x')
-        self.device_box = ttk.Combobox(device_row, textvariable=self.serial, state='readonly', width=30)
-        self.device_box.pack(side='left', padx=(0, 8))
-        self.device_box.bind('<<ComboboxSelected>>', lambda _: self.clear_photos())
-        self.button(device_row, '기기 찾기', self.find_devices, style='Accent.TButton', side='left')
-        ttk.Label(top, textvariable=self.status, style='Muted.TLabel', wraplength=920).pack(anchor='w', pady=(10, 0))
-        notebook = ttk.Notebook(self)
-        notebook.pack(fill='both', expand=True, padx=PAGE_PAD)
-        run = ttk.Frame(notebook, padding=12)
-        settings = ttk.Frame(notebook, padding=12)
-        help_tab = ttk.Frame(notebook, padding=12)
-        notebook.add(run, text='  실행  ')
-        notebook.add(settings, text='  처음 한 번 · 버튼 설정  ')
-        notebook.add(help_tab, text='  사용 방법  ')
+        c = THEME
+        def label(parent, text='', size=10, color=None, bold=False, **kw):
+            return tk.Label(parent, text=text, bg=parent.cget('background'),
+                            fg=color or c['text'], font=(FONT_FAMILY, size, 'bold' if bold else 'normal'), **kw)
+        def section(parent, eyebrow, title):
+            label(parent, eyebrow, 9, c['accent'], True).pack(anchor='w')
+            label(parent, title, 16, bold=True).pack(anchor='w', pady=(5, 14))
+        def listing(parent, height=5, multiple=False):
+            area = tk.Frame(parent, bg=c['input'])
+            area.pack(fill='both', expand=True, pady=(8, 10))
+            box = tk.Listbox(area, height=height, selectmode='extended' if multiple else 'browse',
+                             exportselection=False, activestyle='none')
+            bar = ttk.Scrollbar(area, command=box.yview)
+            box.configure(yscrollcommand=bar.set)
+            bar.pack(side='right', fill='y')
+            box.pack(side='left', fill='both', expand=True)
+            return box
 
-        self.button(run, '1. 사진 목록 불러오기', self.load_photos, anchor='w')
-        self.album_box = ttk.Combobox(run, textvariable=self.album, state='readonly')
-        self.album_box.pack(fill='x', pady=8)
+        sidebar = tk.Frame(self, bg='#101010', width=185)
+        sidebar.pack(side='left', fill='y')
+        sidebar.pack_propagate(False)
+        label(sidebar, 'PA', 26, c['accent'], True).pack(anchor='w', padx=26, pady=(30, 2))
+        label(sidebar, 'PHOTO ASSIST', 11, bold=True).pack(anchor='w', padx=26)
+        label(sidebar, 'QA WORKSPACE', 8, c['muted']).pack(anchor='w', padx=26, pady=(6, 35))
+        self.nav_buttons = {}
+        for key, title in [('run', '01   결과 수집'), ('settings', '02   버튼 · 스타일'), ('help', '03   사용 가이드')]:
+            b = tk.Button(sidebar, text=title, anchor='w', relief='flat', bd=0,
+                          bg='#101010', fg=c['muted'], activebackground=c['hero'], activeforeground=c['text'],
+                          font=(FONT_FAMILY, 10), padx=16, pady=14, cursor='hand2', highlightthickness=0,
+                          command=lambda k=key: self.show_page(k))
+            b.pack(fill='x', padx=12, pady=3)
+            self.nav_buttons[key] = b
+        label(sidebar, 'LOCAL AUTOMATION', 8, c['muted']).pack(side='bottom', anchor='w', padx=24, pady=(0, 26))
+        label(sidebar, '원본 보존 · 결과 수집', 9, c['muted']).pack(side='bottom', anchor='w', padx=24, pady=8)
+
+        main = tk.Frame(self, bg=c['background'])
+        main.pack(side='left', fill='both', expand=True, padx=PAGE_PAD, pady=PAGE_PAD)
+        header = tk.Frame(main, bg=c['background'])
+        header.pack(fill='x', pady=(0, 16))
+        label(header, 'COLLECTION STUDIO', 9, c['accent'], True).pack(anchor='w')
+        label(header, 'Photo Assist', 25, bold=True).pack(anchor='w', pady=(3, 0))
+        label(header, textvariable=self.status, size=10, color=c['muted']).pack(anchor='w', pady=(4, 0))
+
+        stats = tk.Frame(main, bg=c['background'])
+        stats.pack(fill='x', pady=(0, 16))
+        self.selected_count = tk.StringVar(value='0')
+        self.registered_count = tk.StringVar(value='0')
+        self.combination_count = tk.StringVar(value='0')
+        for i, (title, var, color) in enumerate([
+                ('선택한 원본', self.selected_count, c['accent']),
+                ('등록된 스타일', self.registered_count, '#D4D4D4'),
+                ('예정 조합', self.combination_count, '#A3A3A3')]):
+            stats.columnconfigure(i, weight=1, uniform='stats')
+            card = Card(stats, height=94)
+            card.grid(row=0, column=i, sticky='ew', padx=(0 if i==0 else 6, 0 if i==2 else 6))
+            label(card.body, title, 9, c['muted']).pack(anchor='w')
+            label(card.body, textvariable=var, size=23, color=color, bold=True).pack(anchor='w')
+
+        activity = Card(main,height=132); activity.pack(side='bottom',fill='x',pady=(14,0)); activity.pack_propagate(False)
+        line = tk.Frame(activity.body,bg=c['card']); line.pack(fill='x')
+        label(line,'ACTIVITY / 실행 기록',9,c['muted'],True).pack(side='left')
+        self.button(line,'기록 폴더',self.open_records,side='right')
+        self.log = tk.Text(activity.body,height=2,state='disabled',wrap='word'); self.log.pack(fill='both',expand=True,pady=(6,0))
+
+        # 작은 화면에서는 본문 스크롤로 하단 조작 접근.
+        viewport = tk.Frame(main, bg=c['background'])
+        viewport.pack(fill='both', expand=True)
+        canvas = tk.Canvas(viewport, bg=c['background'], highlightthickness=0, height=510)
+        scrollbar = ttk.Scrollbar(viewport, command=canvas.yview)
+        scrollbar.pack(side='right', fill='y')
+        canvas.pack(side='left', fill='both', expand=True)
+        canvas.configure(yscrollcommand=scrollbar.set)
+        deck = tk.Frame(canvas, bg=c['background'])
+        window = canvas.create_window(0, 0, anchor='nw', window=deck)
+        def resize_body(event):
+            canvas.itemconfigure(window, width=event.width, height=max(510, event.height))
+            canvas.configure(scrollregion=(0, 0, event.width, max(510, event.height)))
+        canvas.bind('<Configure>', resize_body)
+        deck.rowconfigure(0, weight=1); deck.columnconfigure(0, weight=1)
+        self.pages = {}
+        for key in ('run', 'settings', 'help'):
+            page = tk.Frame(deck, bg=c['background'])
+            page.grid(row=0, column=0, sticky='nsew')
+            self.pages[key] = page
+
+        run = self.pages['run']
+        run.rowconfigure(0, weight=1); run.columnconfigure(0, weight=3); run.columnconfigure(1, weight=2)
+        photos = Card(run)
+        photos.grid(row=0, column=0, sticky='nsew', padx=(0, 12))
+        section(photos.body, '01 / SOURCE', '원본 사진')
+        self.button(photos.body, '사진 목록 불러오기', self.load_photos, fill='x')
+        self.album_box = ttk.Combobox(photos.body, textvariable=self.album, state='readonly', width=18)
+        self.album_box.pack(fill='x', pady=(12, 0))
         self.album_box.bind('<<ComboboxSelected>>', lambda _: self.show_album())
-        ttk.Label(run, text='2. 편집할 원본만 선택. Ctrl / Shift로 여러 장 선택 가능.').pack(anchor='w')
-        self.photo_list = tk.Listbox(run, selectmode='extended', exportselection=False, height=9)
-        self.photo_list.pack(fill='both', expand=True, pady=6)
-        self.style_summary = tk.StringVar()
-        ttk.Label(run, textvariable=self.style_summary).pack(anchor='w', pady=6)
-        controls = ttk.Frame(run)
-        controls.pack(fill='x')
-        self.button(controls, '선택한 첫 사진 · 첫 스타일만 실행', lambda: self.start(True), side='left', padx=(0, 8))
-        self.button(controls, '3. 선택한 원본 × 모든 등록 스타일 실행', lambda: self.start(False), style='Accent.TButton', side='left')
-        # 중지 버튼은 작업 중에도 사용할 수 있도록 별도로 생성.
-        stop_button = ttk.Button(controls, text='중지', command=self.request_stop)
-        stop_button.pack(side='right')
-        footer = ttk.Frame(run)
-        footer.pack(fill='x', pady=(8, 0))
-        self.button(footer, '새 작업', self.new_job, side='left')
-        self.button(footer, '기록 폴더 열기', self.open_records, side='left', padx=8)
+        self.photo_list = listing(photos.body, multiple=True)
+        self.photo_list.bind('<<ListboxSelect>>', lambda _: self.update_metrics())
+        label(photos.body, 'Ctrl / Shift로 여러 장 선택 · 원본만 선택', 9, c['muted']).pack(anchor='w')
 
-        ttk.Label(settings, text='폰에서 대상 화면 열기 → 버튼 목록 읽기 → 항목 지정. 등록 중 자동 클릭 없음.',
-                  wraplength=900).pack(anchor='w')
-        ttk.Label(settings, text='첫 화면 조회 시 기기 자동화용 보조 프로그램 배치·실행 가능.',
-                  wraplength=900).pack(anchor='w', pady=(3, 8))
-        self.button(settings, '현재 폰 화면의 버튼 읽기', self.read_screen, anchor='w')
-        self.candidate_list = tk.Listbox(settings, exportselection=False, height=8)
-        self.candidate_list.pack(fill='both', expand=True, pady=8)
-        assignments = ttk.Frame(settings)
-        assignments.pack(fill='x')
-        for key, label in [('assist', '포토 어시스트'), ('style_tab', '스타일 탭'), ('generate', '생성 버튼'), ('save', '다른 파일로 저장')]:
-            self.button(assignments, label + ' 지정', lambda k=key: self.assign(k), side='left', padx=(0, 5))
-        self.button(settings, '목록 펼치기(선택) 지정', lambda: self.assign('more'), anchor='w', pady=(5, 0))
-        self.button(settings, '목록 펼치기 설정 해제', lambda: self.assign('more', clear=True), anchor='w', pady=5)
+        control = Card(run)
+        control.grid(row=0, column=1, sticky='nsew')
+        section(control.body, '02 / EXECUTION', '작업 실행')
+        label(control.body, '연결 기기', 9, c['muted']).pack(anchor='w')
+        self.device_box = ttk.Combobox(control.body, textvariable=self.serial, state='readonly', width=15)
+        self.device_box.pack(fill='x', pady=(6, 8))
+        self.device_box.bind('<<ComboboxSelected>>', lambda _: self.clear_photos())
+        self.button(control.body, '기기 찾기', self.find_devices, fill='x')
+        self.style_summary = tk.StringVar()
+        label(control.body, textvariable=self.style_summary, size=9, color=c['muted'], wraplength=285, justify='left').pack(anchor='w', pady=14)
+        self.button(control.body, '첫 사진 · 첫 스타일 시험', lambda: self.start(True), fill='x', pady=(0, 8))
+        self.button(control.body, '전체 수집 시작', lambda: self.start(False), style='Accent.TButton', fill='x')
+        actions = tk.Frame(control.body, bg=c['card'])
+        actions.pack(fill='x', pady=(10, 0))
+        ttk.Button(actions, text='작업 중지', command=self.request_stop).pack(side='left', fill='x', expand=True, padx=(0, 4))
+        self.button(actions, '새 작업', self.new_job, side='left', fill='x', expand=True, padx=(4, 0))
+
+        settings = self.pages['settings']
+        settings.rowconfigure(0, weight=1); settings.columnconfigure(0, weight=1); settings.columnconfigure(1, weight=1)
+        mapping = Card(settings); mapping.grid(row=0, column=0, sticky='nsew', padx=(0, 12))
+        section(mapping.body, '01 / MAPPING', '화면 버튼 등록')
+        self.button(mapping.body, '현재 폰 화면의 버튼 읽기', self.read_screen, fill='x')
+        self.candidate_list = listing(mapping.body, height=3)
+        assignments = tk.Frame(mapping.body, bg=c['card']); assignments.pack(fill='x')
+        for i, (key, title) in enumerate([('assist','포토 어시스트'),('style_tab','스타일 탭'),('generate','생성 버튼'),('save','다른 파일로 저장')]):
+            b = ttk.Button(assignments, text=title+' 지정', command=lambda k=key: self.assign(k))
+            b.grid(row=i//2, column=i%2, sticky='ew', padx=2, pady=3)
+            self.buttons.append(b)
+        assignments.columnconfigure(0,weight=1); assignments.columnconfigure(1,weight=1)
         self.mapping = tk.StringVar()
-        ttk.Label(settings, textvariable=self.mapping, wraplength=900).pack(anchor='w', pady=4)
-        style_row = ttk.Frame(settings)
-        style_row.pack(fill='x', pady=5)
-        ttk.Label(style_row, text='스타일 이름').pack(side='left')
-        self.style_name = ttk.Entry(style_row, width=16)
-        self.style_name.pack(side='left', padx=5)
-        ttk.Label(style_row, text='왼쪽 이동 횟수(처음 기준)').pack(side='left')
-        # 횟수 범위를 바꾸면 add_style과 automation.py의 validate도 함께 수정.
-        self.swipes = ttk.Spinbox(style_row, from_=0, to=20, width=4)
-        self.swipes.set('0')
-        self.swipes.pack(side='left', padx=5)
-        self.button(style_row, '선택한 버튼을 스타일로 추가', self.add_style, side='left')
-        self.style_list = tk.Listbox(settings, exportselection=False, height=4)
-        self.style_list.pack(fill='x', pady=4)
-        self.button(settings, '선택한 스타일 삭제', self.remove_style, anchor='w')
-        text = tk.Text(help_tab, wrap='word', relief='flat', font=('맑은 고딕', 10))
-        text.pack(fill='both', expand=True)
-        text.insert('1.0', HELP)
-        text.configure(state='disabled')
-        self.log = tk.Text(self, height=4, state='disabled', wrap='word')
-        self.log.pack(fill='x', padx=PAGE_PAD, pady=(12, PAGE_PAD))
+        label(mapping.body, textvariable=self.mapping, size=9, color=c['muted'], wraplength=350, justify='left').pack(anchor='w', pady=(10,0))
+        styles = Card(settings); styles.grid(row=0, column=1, sticky='nsew')
+        section(styles.body, '02 / STYLES', '스타일 구성')
+        label(styles.body, '스타일 이름', 9, c['muted']).pack(anchor='w')
+        self.style_name = ttk.Entry(styles.body); self.style_name.pack(fill='x', pady=(5,8))
+        row = tk.Frame(styles.body,bg=c['card']); row.pack(fill='x')
+        label(row, '왼쪽 이동 횟수 · 처음 기준',9,c['muted']).pack(side='left')
+        self.swipes = ttk.Spinbox(row,from_=0,to=20,width=4); self.swipes.set('0'); self.swipes.pack(side='right')
+        self.button(styles.body,'선택한 버튼을 스타일로 추가',self.add_style,style='Accent.TButton',fill='x',pady=(10,0))
+        self.style_list = listing(styles.body,height=2)
+        self.button(styles.body,'선택한 스타일 삭제',self.remove_style,fill='x')
+        optional = tk.Frame(styles.body,bg=c['card']); optional.pack(fill='x',pady=(8,0))
+        self.button(optional,'목록 펼치기 지정',lambda:self.assign('more'),side='left')
+        self.button(optional,'해제',lambda:self.assign('more',clear=True),side='right')
+
+        help_card = Card(self.pages['help']); help_card.pack(fill='both',expand=True)
+        section(help_card.body,'QUICK GUIDE','사용 가이드')
+        text = tk.Text(help_card.body,wrap='word',height=5)
+        bar = ttk.Scrollbar(help_card.body,command=text.yview); bar.pack(side='right',fill='y')
+        text.configure(yscrollcommand=bar.set); text.pack(fill='both',expand=True)
+        text.insert('1.0',HELP); text.configure(state='disabled')
+
+        self.show_page('run')
+
+    def show_page(self, key):
+        self.pages[key].tkraise()
+        for name, button in self.nav_buttons.items():
+            button.configure(bg=THEME['hero'] if name==key else '#101010',
+                             fg=THEME['text'] if name==key else THEME['muted'])
+
+    # 화면의 선택과 등록 개수 기준. 완료 개수와 구분.
+    def update_metrics(self):
+        photos = len(self.photo_list.curselection())
+        styles = len(self.profile['styles'])
+        self.selected_count.set(str(photos))
+        self.registered_count.set(str(styles))
+        self.combination_count.set(str(photos*styles))
 
     def say(self, text):
         self.status.set(text)
@@ -285,6 +393,7 @@ class App(tk.Tk):
         self.photo_list.delete(0, 'end')
         self.album.set('')
         self.album_box['values'] = []
+        self.update_metrics()
 
     def load_photos(self):
         try:
@@ -308,6 +417,8 @@ class App(tk.Tk):
         self.photo_list.delete(0, 'end')
         for p in self.shown:
             self.photo_list.insert('end', f"{PurePosixPath(p['path']).name}  · ID {p['id']}")
+
+        self.update_metrics()
 
     # 현재 폰 화면에서 버튼 후보를 읽기. 화면을 바꾼 뒤 다시 읽어야 함.
     def read_screen(self):
@@ -348,7 +459,9 @@ class App(tk.Tk):
         self.style_list.delete(0, 'end')
         for s in self.profile['styles']:
             self.style_list.insert('end', f"{s['name']} · 왼쪽 이동 {s.get('swipes', 0)}회")
-        self.style_summary.set(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가/변경은 [버튼 설정] 탭")
+        self.style_summary.set(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가·변경: [버튼 · 스타일] 메뉴")
+
+        self.update_metrics()
 
     # 추가한 순서대로 실행. 스타일 이름은 완료 기록에도 사용하므로 중복을 방지.
     def add_style(self):
@@ -417,7 +530,7 @@ class App(tk.Tk):
         self.destroy()
 
 
-HELP = '''처음 한 번 · 버튼 설정
+HELP = '''처음 한 번 · [버튼 · 스타일] 메뉴에서 등록
 1. 폰 USB 디버깅 활성화 및 PC 연결 허용.
 2. [기기 찾기]에서 대상 폰 선택.
 3. 폰에서 원본 사진 열기 → [현재 폰 화면의 버튼 읽기] → 포토 어시스트 항목 선택 → [포토 어시스트 지정].
@@ -438,7 +551,7 @@ HELP = '''처음 한 번 · 버튼 설정
 중지와 기록
 중지: 이후 조작 중단. 이미 시작된 생성 취소 불가.
 완료 여부가 불명확한 작업의 자동 재실행 없음.
-[기록 폴더 열기]: PC의 버튼 설정·실행 이력·오류 기록 확인.
+[기록 폴더]: PC의 버튼 설정·실행 이력·오류 기록 확인.
 결과 사진 저장 위치: 원본과 같은 폰 폴더.
 
 현재 확인 범위와 제한
