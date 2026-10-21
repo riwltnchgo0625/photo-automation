@@ -154,3 +154,21 @@ Windows에서 EXE 제작:
 빌드 결과는 `desktop/dist/PhotoAssistCollector-Windows.zip`임. 빌드와 자동 테스트는 실제 폰에서의 생성·저장 검증을 대신하지 않음.
 
 더 자세한 절차는 [사용설명서](desktop/USER_GUIDE.md)를 참고. 외부 패키지 라이선스는 EXE 배포 폴더의 `licenses/`에 포함.
+
+## 디자인 수정
+
+`desktop/app.py` 상단의 디자인 값 변경 후 저장 및 프로그램 재실행.
+
+| 항목 | 수정 위치 |
+|---|---|
+| 전체 배경 | `THEME['background']` |
+| 영역 배경 | `THEME['card']` |
+| 목록·입력칸 배경 | `THEME['input']` |
+| 상단 배너 | `THEME['hero']` |
+| 강조 버튼 | `THEME['accent']`, 마우스 표시 색상 `hover` |
+| 글자·보조 글자 | `THEME['text']`, `muted` |
+| 글꼴·크기 | `FONT_FAMILY`, `FONT_SIZE` |
+| 외곽 여백·초기 창 크기 | `PAGE_PAD`, `WINDOW_SIZE` |
+| 스타일·배치 | `setup_theme()`, `build_ui()` |
+
+기본 Tkinter/ttk 기반의 남색 테마. 추가 디자인 패키지 설치 불필요. 둥근 모서리·그림자·그라데이션 미적용. Windows 제목 표시줄과 시스템 팝업은 운영체제 스타일 유지. 폰 조작은 `automation.py`에서 처리하며 디자인 수정 대상과 분리.
