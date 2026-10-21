@@ -1,4 +1,4 @@
-"""배포에 포함된 패키지의 라이선스/NOTICE를 모은다. 런타임 코드가 아니다."""
+"""배포 패키지 라이선스·NOTICE 수집. 실행 기능과 분리."""
 from importlib.metadata import distributions
 from pathlib import Path
 import sys

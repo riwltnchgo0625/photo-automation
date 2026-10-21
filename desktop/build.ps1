@@ -1,20 +1,20 @@
 $ErrorActionPreference = 'Stop'
 Set-Location $PSScriptRoot
 
-# 개발자/빌드 서버에서만 실행한다. 사용자는 완성된 EXE를 실행한다.
+# 개발자·빌드 서버용 실행. 사용자는 완성된 EXE 실행.
 python -m pip install -r requirements-build.txt
 if ($LASTEXITCODE -ne 0) { throw 'Dependency installation failed' }
 python -m unittest discover -s tests -v
 if ($LASTEXITCODE -ne 0) { throw 'Tests failed' }
 
-# --onedir: EXE 옆의 _internal에 Python, ADB, 자동화 자료를 포함한다.
-# 전체 폴더를 배포하면 사용자 PC에 Python/Node/Docker 설치가 필요하지 않다.
+# --onedir: EXE 옆의 _internal에 Python, ADB, 자동화 자료를 포함.
+# 전체 폴더를 배포하면 사용자 PC에 Python/Node/Docker 설치가 불필요.
 python -m PyInstaller --noconfirm --clean --onedir --windowed --noupx `
   --name PhotoAssistCollector --collect-all uiautomator2 --collect-all adbutils `
   --copy-metadata uiautomator2 --copy-metadata adbutils app.py
 if ($LASTEXITCODE -ne 0) { throw 'EXE build failed' }
 
-# 오류 팝업에 매달리지 않도록 제한시간을 두고 패키징 스모크 테스트를 실행한다.
+# 오류 팝업 대기 방지를 위한 제한시간 내 패키징 검사.
 $test = Start-Process -FilePath '.\dist\PhotoAssistCollector\PhotoAssistCollector.exe' -ArgumentList '--self-test' -PassThru
 if (-not $test.WaitForExit(60000)) {
   $test.Kill()

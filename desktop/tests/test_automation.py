@@ -85,7 +85,7 @@ class SelectorTests(unittest.TestCase):
 
 
 class RunTests(unittest.TestCase):
-    # ADB 없이 실제 open_original이 만드는 명령을 검사합니다. 삼성 갤러리 동작을 검증하는 것은 아닙니다.
+    # ADB 없이 실제 open_original이 만드는 명령을 검사함. 삼성 갤러리 동작을 검증하는 것은 아님.
     def test_open_original_requests_stack_cleanup_and_exact_uri(self):
         phone = Phone.__new__(Phone)
         with patch.object(phone, 'shell') as shell:
@@ -121,7 +121,7 @@ class RunTests(unittest.TestCase):
             state = json.loads((Path(d) / 'progress.json').read_text())
             self.assertEqual(list(state['done']), ['1:A', '1:B', '10:A', '10:B'])
 
-    # 예전 설정에는 generate 키가 없습니다. 폰을 조작하기 전에 등록 안내로 멈춰야 합니다.
+    # 예전 설정에는 generate 키가 없음. 폰을 조작하기 전에 등록 안내로 멈춰야 함.
     def test_missing_generate_stops_before_phone_access(self):
         for value in ('missing', None):
             profile = dict(PROFILE)
@@ -139,7 +139,7 @@ class RunTests(unittest.TestCase):
             self.assertEqual(phone.opened, [])
             self.assertEqual(phone.clicks, [])
 
-    # 생성 버튼을 찾지 못한 경우 저장 클릭으로 넘어가면 안 됩니다.
+    # 생성 버튼을 찾지 못한 경우 저장 클릭으로 넘어가면 안 됨.
     def test_generate_failure_does_not_save(self):
         phone = FakePhone()
         click = phone.click

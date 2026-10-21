@@ -1,4 +1,4 @@
-"""사용 화면만 담당한다. 휴대전화 작업 로직은 automation.py에 둔다."""
+"""PC 사용 화면 구성. 폰 작업 로직은 automation.py에서 처리."""
 from __future__ import annotations
 
 import copy
@@ -20,12 +20,12 @@ class App(tk.Tk):
     def __init__(self):
         super().__init__()
         self.title('Photo Assist · 스타일 결과 수집')
-        # 창 크기: 가로 × 세로. 최소 크기는 아래 minsize에서 변경합니다.
+        # 창 크기: 가로 × 세로. 최소 크기는 아래 minsize에서 변경.
         self.geometry('980x790')
         self.minsize(850, 700)
         self.store = app_data()
         self.profile_path = self.store / 'buttons.json'
-        # 버튼·스타일 기본값. 기존 buttons.json이 있으면 저장된 설정을 불러옵니다.
+        # 버튼·스타일 기본값. 기존 buttons.json이 있으면 저장된 설정을 불러오기.
         self.profile = {'assist': None, 'style_tab': None, 'generate': None, 'save': None, 'more': None, 'styles': []}
         try:
             if self.profile_path.exists():
@@ -39,7 +39,7 @@ class App(tk.Tk):
         self.buttons = []
         self.serial = tk.StringVar()
         self.album = tk.StringVar()
-        self.status = tk.StringVar(value='USB 연결 후 [기기 찾기]를 눌러줘.')
+        self.status = tk.StringVar(value='USB 연결 후 [기기 찾기] 선택.')
         self.build_ui()
         self.refresh_profile()
         self.protocol('WM_DELETE_WINDOW', self.close)
@@ -51,7 +51,7 @@ class App(tk.Tk):
         self.buttons.append(b)
         return b
 
-    # PC 화면 구성. 버튼 문구와 배치는 여기서 수정합니다.
+    # PC 화면 구성. 버튼 문구와 배치는 여기서 수정.
     def build_ui(self):
         top = ttk.Frame(self, padding=16)
         top.pack(fill='x')
@@ -77,7 +77,7 @@ class App(tk.Tk):
         self.album_box = ttk.Combobox(run, textvariable=self.album, state='readonly')
         self.album_box.pack(fill='x', pady=8)
         self.album_box.bind('<<ComboboxSelected>>', lambda _: self.show_album())
-        ttk.Label(run, text='2. 편집할 원본만 선택해줘. Ctrl / Shift로 여러 장 선택할 수 있어.').pack(anchor='w')
+        ttk.Label(run, text='2. 편집할 원본만 선택. Ctrl / Shift로 여러 장 선택 가능.').pack(anchor='w')
         self.photo_list = tk.Listbox(run, selectmode='extended', exportselection=False, height=9)
         self.photo_list.pack(fill='both', expand=True, pady=6)
         self.style_summary = tk.StringVar()
@@ -86,7 +86,7 @@ class App(tk.Tk):
         controls.pack(fill='x')
         self.button(controls, '선택한 첫 사진 · 첫 스타일만 실행', lambda: self.start(True), side='left', padx=(0, 8))
         self.button(controls, '3. 선택한 원본 × 모든 등록 스타일 실행', lambda: self.start(False), side='left')
-        # 중지 버튼은 작업 중에도 사용할 수 있도록 별도로 만듭니다.
+        # 중지 버튼은 작업 중에도 사용할 수 있도록 별도로 생성.
         stop_button = ttk.Button(controls, text='중지', command=self.request_stop)
         stop_button.pack(side='right')
         footer = ttk.Frame(run)
@@ -94,9 +94,9 @@ class App(tk.Tk):
         self.button(footer, '새 작업', self.new_job, side='left')
         self.button(footer, '기록 폴더 열기', self.open_records, side='left', padx=8)
 
-        ttk.Label(settings, text='폰에서 해당 화면을 직접 연 뒤 버튼 목록을 읽어 지정해줘. 이 화면에서는 자동 클릭하지 않아.',
+        ttk.Label(settings, text='폰에서 대상 화면 열기 → 버튼 목록 읽기 → 항목 지정. 등록 중 자동 클릭 없음.',
                   wraplength=900).pack(anchor='w')
-        ttk.Label(settings, text='처음 화면을 읽을 때 기기 자동화용 보조 프로그램이 배치·실행될 수 있어.',
+        ttk.Label(settings, text='첫 화면 조회 시 기기 자동화용 보조 프로그램 배치·실행 가능.',
                   wraplength=900).pack(anchor='w', pady=(3, 8))
         self.button(settings, '현재 폰 화면의 버튼 읽기', self.read_screen, anchor='w')
         self.candidate_list = tk.Listbox(settings, exportselection=False, height=8)
@@ -115,7 +115,7 @@ class App(tk.Tk):
         self.style_name = ttk.Entry(style_row, width=16)
         self.style_name.pack(side='left', padx=5)
         ttk.Label(style_row, text='처음 목록에서 왼쪽 스와이프 횟수').pack(side='left')
-        # 횟수 범위를 바꾸면 add_style과 automation.py의 validate도 함께 수정합니다.
+        # 횟수 범위를 바꾸면 add_style과 automation.py의 validate도 함께 수정.
         self.swipes = ttk.Spinbox(style_row, from_=0, to=20, width=4)
         self.swipes.set('0')
         self.swipes.pack(side='left', padx=5)
@@ -137,7 +137,7 @@ class App(tk.Tk):
         self.log.see('end')
         self.log.configure(state='disabled')
 
-    # 폰 작업은 별도 스레드에서 실행하고, 화면 갱신은 poll에 맡깁니다.
+    # 폰 작업은 별도 스레드에서 실행하고, 화면 갱신은 poll에 위임.
     def job(self, func, callback=None):
         if self.busy:
             return
@@ -172,7 +172,7 @@ class App(tk.Tk):
                         callback(value)
                 elif kind == 'error':
                     self.say(payload)
-                    messagebox.showerror('작업을 멈췄어', payload)
+                    messagebox.showerror('작업 중단', payload)
                 elif kind == 'log':
                     self.say(payload)
                 elif kind == 'done':
@@ -189,7 +189,7 @@ class App(tk.Tk):
     def phone(self):
         serial = self.serial.get()
         if not serial:
-            raise ValueError('기기를 먼저 선택해줘.')
+            raise ValueError('기기 선택 필요.')
         return Phone(serial)
 
     def find_devices(self):
@@ -198,13 +198,13 @@ class App(tk.Tk):
             ready = [d['serial'] for d in rows if d['state'] == 'device']
             self.device_box['values'] = ready
             self.serial.set(ready[0] if ready else '')
-            self.say('기기 선택 완료.' if ready else '연결된 기기가 없어. USB 디버깅·폰의 연결 허용·USB 드라이버를 확인해줘.')
+            self.say('기기 선택 완료.' if ready else '연결된 기기 없음. USB 디버깅·PC 연결 허용·USB 드라이버 확인 필요.')
             for d in rows:
                 if d['state'] != 'device':
-                    self.say(d['serial'] + ': ' + d['state'] + ' — 폰 화면에서 연결 허용 여부를 확인해줘.')
+                    self.say(d['serial'] + ': ' + d['state'] + ' — 폰 화면에서 PC 연결 허용 여부 확인 필요.')
         self.job(devices, done)
 
-    # 기기를 바꾸면 이전 기기의 사진 선택을 비웁니다. 실제 파일은 삭제하지 않습니다.
+    # 기기를 바꾸면 이전 기기의 사진 선택을 초기화. 실제 파일은 삭제하지 않음.
     def clear_photos(self):
         self.photos, self.shown = {}, []
         self.photo_list.delete(0, 'end')
@@ -223,10 +223,10 @@ class App(tk.Tk):
             if self.album.get() not in folders:
                 self.album.set(folders[0] if folders else '')
             self.show_album()
-            self.say('사진 목록을 불러왔어. 폴더와 원본 사진을 선택해줘.')
+            self.say('사진 목록 조회 완료. 폴더 및 원본 사진 선택.')
         self.job(phone.photos, done)
 
-    # 사진 실행 순서는 파일 경로 문자순입니다. 정렬을 바꾸려면 아래 key를 수정합니다.
+    # 사진 실행 순서는 파일 경로 문자순임. 정렬을 바꾸려면 아래 key를 수정.
     def show_album(self):
         self.shown = sorted([p for p in self.photos.values()
                              if str(PurePosixPath(p['path']).parent) == self.album.get()], key=lambda p: p['path'])
@@ -234,7 +234,7 @@ class App(tk.Tk):
         for p in self.shown:
             self.photo_list.insert('end', f"{PurePosixPath(p['path']).name}  · ID {p['id']}")
 
-    # 현재 폰 화면에서 버튼 후보를 읽습니다. 화면을 바꾼 뒤 다시 읽어야 합니다.
+    # 현재 폰 화면에서 버튼 후보를 읽기. 화면을 바꾼 뒤 다시 읽어야 함.
     def read_screen(self):
         try:
             phone = self.phone()
@@ -248,16 +248,16 @@ class App(tk.Tk):
             self.candidate_list.delete(0, 'end')
             for item in self.candidates:
                 self.candidate_list.insert('end', item['label'] + '  [' + item['selector']['field'] + ']')
-            self.say(f'{len(self.candidates)}개 요소를 읽었어. 원하는 버튼을 선택해서 지정해줘.')
+            self.say(f'{len(self.candidates)}개 요소 조회 완료. 대상 버튼 선택 및 지정.')
         self.job(read, done)
 
     def selected_candidate(self):
         selection = self.candidate_list.curselection()
         if not selection:
-            raise ValueError('현재 화면 목록에서 버튼 하나를 선택해줘.')
+            raise ValueError('현재 화면 목록에서 버튼 1개 선택 필요.')
         return self.candidates[selection[0]]
 
-    # 선택한 버튼을 역할에 연결하고 설정 파일에 저장합니다.
+    # 선택한 버튼을 역할에 연결하고 설정 파일에 저장.
     def assign(self, key, clear=False):
         try:
             self.profile[key] = None if clear else self.selected_candidate()['selector']
@@ -275,19 +275,19 @@ class App(tk.Tk):
             self.style_list.insert('end', f"{s['name']} · 왼쪽 이동 {s.get('swipes', 0)}회")
         self.style_summary.set(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가/변경은 [버튼 설정] 탭")
 
-    # 추가한 순서대로 실행합니다. 스타일 이름은 완료 기록에도 사용하므로 중복을 막습니다.
+    # 추가한 순서대로 실행. 스타일 이름은 완료 기록에도 사용하므로 중복을 방지.
     def add_style(self):
         try:
             item = self.selected_candidate()
             name = self.style_name.get().strip() or item['label']
             count = int(self.swipes.get())
             if not 0 <= count <= 20:
-                raise ValueError('이동 횟수는 0~20으로 지정해줘.')
+                raise ValueError('이동 횟수 지정 범위: 0~20.')
             if any(s['name'] == name for s in self.profile['styles']):
-                raise ValueError('같은 스타일 이름이 이미 있어.')
+                raise ValueError('동일 스타일 이름 등록 상태.')
             _, y1, _, y2 = item['bounds']
             y = max(.01, min(.99, (y1 + y2) / 2 / self.screen_size[1]))
-            # 버튼의 세로 중심을 스와이프 높이로 저장합니다. 화면 배치가 바뀌면 다시 등록합니다.
+            # 버튼의 세로 중심을 스와이프 높이로 저장. 화면 배치가 바뀌면 다시 등록.
             self.profile['styles'].append({'name': name, 'selector': item['selector'], 'swipes': count, 'swipe_y': y})
             self.refresh_profile(save=True)
             self.style_name.delete(0, 'end')
@@ -300,7 +300,7 @@ class App(tk.Tk):
             del self.profile['styles'][selection[0]]
             self.refresh_profile(save=True)
 
-    # first_only=True이면 첫 사진·첫 스타일만 실제 생성하고 저장합니다.
+    # first_only=True이면 첫 사진·첫 스타일만 실제 생성하고 저장.
     def start(self, first_only):
         try:
             phone = self.phone()
@@ -317,16 +317,16 @@ class App(tk.Tk):
     def request_stop(self):
         if self.busy:
             self.stop.set()
-            self.say('중지 요청됨. 진행 중인 통신이 끝나면 다음 클릭 전에 멈춰. 이미 시작한 생성은 취소하지 않아.')
+            self.say('중지 요청 접수. 진행 중인 통신 종료 후 다음 클릭 전 중단. 이미 시작된 생성 취소 불가.')
 
-    # 완료 이력만 보관하고 새로 시작합니다. 같은 조합을 다시 실행하면 결과가 중복될 수 있습니다.
+    # 완료 이력만 보관하고 새로 시작. 같은 조합을 다시 실행하면 결과가 중복될 수 있음.
     def new_job(self):
         path = self.store / 'progress.json'
         if path.exists():
-            if not messagebox.askyesno('새 작업', '기존 완료 이력을 보관하고 새 작업을 시작할까?\n이미 저장된 사진은 남아 있어. 같은 사진·스타일을 고르면 중복 생성될 수 있어.'):
+            if not messagebox.askyesno('새 작업', '새 작업 시작 확인.\n기존 완료 이력 보관 및 저장된 사진 유지. 동일 사진·스타일 재선택 시 중복 생성 가능.'):
                 return
             path.rename(self.store / f'progress_{time.time_ns()}.json')
-        self.say('새 작업을 준비했어. 다음 실행에서 사용할 원본을 선택해줘.')
+        self.say('새 작업 준비 완료. 다음 실행 대상 원본 선택.')
 
     def open_records(self):
         if sys.platform == 'win32':
@@ -334,7 +334,7 @@ class App(tk.Tk):
         else:
             self.say(str(self.store))
 
-    # 작업 중에는 먼저 중지하고, 작업이 끝난 뒤 창을 닫습니다.
+    # 작업 중에는 먼저 중지하고, 작업이 끝난 뒤 창을 닫기.
     def close(self):
         if self.busy:
             self.request_stop()
@@ -342,43 +342,40 @@ class App(tk.Tk):
         self.destroy()
 
 
-HELP = '''처음 한 번
-1. 폰에서 USB 디버깅을 켜고 PC 연결을 허용해줘.
-2. [기기 찾기]로 연결할 폰을 선택해줘.
-3. 폰에서 원본 사진을 직접 열고 [버튼 설정] 탭의 [현재 폰 화면의 버튼 읽기]를 눌러.
-   목록에서 포토 어시스트 버튼을 선택하고 [포토 어시스트 지정]을 눌러.
-4. 폰에서 직접 포토 어시스트로 들어간 뒤 같은 방법으로 스타일 탭을 지정해줘.
-5. 스타일 화면에서 목록을 읽어 각 스타일 버튼을 등록해줘.
-   목록을 가로로 넘겨야 한다면 초기 목록부터 왼쪽으로 넘긴 횟수도 입력해줘.
-   매번 더보기/분류 버튼을 눌러야 한다면 [목록 펼치기]로 지정할 수 있어.
-6. 폰에서 스타일 하나를 선택한 뒤 화면의 버튼을 다시 읽어.
-   ‘생성’ 항목을 선택하고 [생성 버튼 지정]을 눌러줘.
-7. 폰에서 직접 [생성]을 누르고 기다린 다음, 결과 화면의
-   ‘다른 파일로 저장’ 버튼을 읽어서 저장 버튼으로 지정해줘.
-   다른 화면에서는 같은 역할의 버튼 정보가 달라질 수 있어.
+HELP = '''처음 한 번 · 버튼 설정
+1. 폰 USB 디버깅 활성화 및 PC 연결 허용.
+2. [기기 찾기]에서 대상 폰 선택.
+3. 폰에서 원본 사진 열기 → [현재 폰 화면의 버튼 읽기] → 포토 어시스트 항목 선택 → [포토 어시스트 지정].
+4. 폰에서 포토 어시스트 진입 → 화면 읽기 → 스타일 항목 선택 → [스타일 탭 지정].
+5. 스타일 화면 읽기 → 스타일 항목 선택 → 이름·왼쪽 스와이프 횟수 입력 → 스타일 추가.
+   이동 횟수는 처음 목록 위치 기준. 필요한 경우에만 [목록 펼치기] 지정.
+6. 폰에서 스타일 선택 → 화면 읽기 → 생성 항목 선택 → [생성 버튼 지정].
+7. 폰에서 직접 생성 → 완료 대기 → 화면 읽기 → 다른 파일로 저장 항목 지정.
+   원본 덮어쓰기 버튼 지정 금지. 화면 변경 시 버튼 정보 재확인 필요.
 
 실행
-사진 목록 → 폴더 → 원본 사진 선택 → 첫 사진·첫 스타일만 실행.
-저장 위치와 원본 재진입이 맞는지 확인한 뒤 [새 작업]으로 모든 스타일을 실행해줘.
-폰은 잠금을 해제하고 Photo Assist 생성에 필요한 인터넷 연결을 유지해줘.
-실행 중에는 다른 앱 조작·촬영·사진 다운로드를 하지 마.
+사진 목록 조회 → 폴더 선택 → 원본 선택 → 첫 사진·첫 스타일 시험 실행.
+저장 위치·원본 확인 후 [새 작업] 선택 및 전체 실행.
+시험 조합을 다시 포함할 경우 결과 중복 생성 가능.
+폰 잠금 해제 및 Photo Assist용 인터넷 연결 유지.
+실행 중 다른 앱 조작·촬영·사진 다운로드 금지.
 
 중지와 기록
-중지는 다음 조작을 멈추는 기능이야. 서버에 보낸 생성 요청을 취소하지는 않아.
-완료 여부가 불명확한 작업은 자동으로 다시 실행하지 않아.
-[기록 폴더 열기]에서 버튼 설정·실행 이력·오류 기록을 확인할 수 있어.
-기록은 PC에, 결과 사진은 원본과 같은 휴대전화 폴더에 남아.
+중지: 이후 조작 중단. 이미 시작된 생성 취소 불가.
+완료 여부가 불명확한 작업의 자동 재실행 없음.
+[기록 폴더 열기]: PC의 버튼 설정·실행 이력·오류 기록 확인.
+결과 사진 저장 위치: 원본과 같은 폰 폴더.
 
-현재 한계
-실제 S26+에서 전체 실행은 아직 검증하지 않았어.
-UI에 이름/설명이 없는 스타일, 세로 목록, 스타일별로 다른 분류 경로는 추가 조정이 필요해.
-저장된 사진을 이전/이후 목록 차이로 연결하므로 다른 이미지 생성 작업을 병행하면 안 돼.
-보조 자동화 프로그램은 폰에서 실행될 수 있어. 루팅·보안 차단 해제·원본 삭제는 하지 않아.
-원본 보존 검사는 파일 경로·크기·수정시간 비교이며 파일 내용의 해시 비교는 아니야.
+현재 확인 범위와 제한
+S26+ 한 장·3d 툰 실행 성공 보고. 여러 장 연속 실행 및 화면 누적 수정 효과 확인 필요.
+이름 없는 요소·세로 목록·스타일별 별도 진입 경로·추가 팝업은 추가 구현 필요.
+저장 전후 사진 목록 차이로 결과 연결. 다른 이미지 생성 작업 병행 금지.
+폰 자동화 보조 프로그램 실행 가능. 루팅·보안 차단 해제·원본 삭제 명령 없음.
+원본 보존 확인: 파일 경로·크기·수정시간 비교. 파일 내용 해시 비교 제외.
 '''
 
 
-# EXE 패키징 검사입니다. 폰을 연결하는 실기기 테스트는 아닙니다.
+# EXE 패키징 검사임. 폰을 연결하는 실기기 테스트는 아님.
 def self_test():
     import adbutils
     import uiautomator2
@@ -421,7 +418,7 @@ if __name__ == '__main__':
                 msvcrt.locking(lock.fileno(), msvcrt.LK_NBLCK, 1)
             except OSError:
                 root = tk.Tk(); root.withdraw()
-                messagebox.showinfo('이미 실행 중', '기존 Photo Assist 창을 사용해줘.')
+                messagebox.showinfo('이미 실행 중', '기존 Photo Assist 창 사용.')
                 root.destroy()
                 sys.exit(1)
         App().mainloop()
