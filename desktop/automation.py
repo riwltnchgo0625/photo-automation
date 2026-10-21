@@ -202,10 +202,14 @@ class Phone:
     # 썸네일 위치 대신 사진 ID 주소로 정확한 원본 열기를 요청합니다.
     # 이 요청 뒤 실제 갤러리가 의도한 사진을 여는지는 기기에서 확인해야 합니다.
     def open_original(self, photo):
-        # 강제 종료, 삭제, 원본 덮어쓰기 명령을 사용하지 않는다.
+        # --activity-clear-top: 기존 사진 Activity 위의 편집 화면을 정리한 뒤 원본을 엽니다.
+        # 이 옵션을 빼면 반복 실행마다 사진/편집 화면이 뒤로가기 기록에 쌓일 수 있습니다.
+        # 사진 파일이나 앱 데이터를 지우는 옵션이 아닙니다. 강제 종료도 하지 않습니다.
+        # standard Activity는 새 인스턴스로 교체됩니다. 다른 원본 URI 처리 여부는 실기기로 확인합니다.
+        # 저장 확인 전 오류/중지 시에는 execute가 다음 원본을 열지 않고 멈춥니다.
         self.shell('am', 'start', '-W', '-a', 'android.intent.action.VIEW',
                    '-d', MEDIA + '/' + photo['id'], '-t', 'image/*', '-p', GALLERY,
-                   '--grant-read-uri-permission')
+                   '--grant-read-uri-permission', '--activity-clear-top')
 
     # 현재 화면 구조를 읽습니다. 스크린샷을 찍거나 저장하는 함수는 아닙니다.
     def screen(self):
@@ -308,6 +312,11 @@ def execute(phone, profile, originals, stop, emit, work):
             # 매 스타일마다 같은 원본부터 다시 시작합니다.
             # 이 줄을 사진 반복 바깥으로 옮기면 이전 결과에 다음 스타일을 적용할 위험이 있습니다.
             phone.open_original(original)
+            # 사진 열기 명령이 끝나도 화면 애니메이션은 진행 중일 수 있습니다.
+            # 2는 클릭 전 대기 초입니다. 늘리면 매 스타일마다 더 오래 기다립니다.
+            # stop.wait를 사용하므로 2초 대기 중에도 중지할 수 있습니다.
+            if stop.wait(2):
+                check_stop(stop)
             phone.click(profile['assist'], stop)
             phone.click(profile['style_tab'], stop)
             # 선택 사항인 목록 펼치기 버튼은 모든 스타일에 공통으로 한 번 누릅니다.
@@ -355,3 +364,4 @@ def execute(phone, profile, originals, stop, emit, work):
                 raise TimeoutError('저장된 파일을 확인하지 못했어. 폰의 결과를 확인해줘.')
     # 모든 조합 처리/건너뛰기가 끝났습니다. 완료 메시지는 이미지 품질 합격을 의미하지 않습니다.
     emit('완료. 저장된 사진의 품질은 갤러리에서 평가해줘.')
+

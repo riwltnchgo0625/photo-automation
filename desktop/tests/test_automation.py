@@ -5,7 +5,7 @@ import threading
 import unittest
 from unittest.mock import patch
 
-from automation import execute, parse_media, saved_result, screen_candidates, select_nodes, Stopped
+from automation import execute, parse_media, saved_result, screen_candidates, select_nodes, Stopped, Phone, MEDIA, GALLERY
 
 ORIGINAL = dict(id='1', size=100, modified=10, path='/storage/emulated/0/Pictures/Test/dog.jpg')
 RESULT = dict(id='2', size=200, modified=11, path='/storage/emulated/0/Pictures/Test/dog_edited.jpg')
@@ -85,6 +85,42 @@ class SelectorTests(unittest.TestCase):
 
 
 class RunTests(unittest.TestCase):
+    # ADB 없이 실제 open_original이 만드는 명령을 검사합니다. 삼성 갤러리 동작을 검증하는 것은 아닙니다.
+    def test_open_original_requests_stack_cleanup_and_exact_uri(self):
+        phone = Phone.__new__(Phone)
+        with patch.object(phone, 'shell') as shell:
+            for ident in ('1', '99'):
+                phone.open_original({**ORIGINAL, 'id': ident})
+                shell.assert_called_with(
+                    'am', 'start', '-W', '-a', 'android.intent.action.VIEW',
+                    '-d', MEDIA + '/' + ident, '-t', 'image/*', '-p', GALLERY,
+                    '--grant-read-uri-permission', '--activity-clear-top')
+
+    def test_wait_after_open_before_assist_and_stop_during_wait(self):
+        phone = FakePhone()
+        stop = threading.Event()
+        def stop_in_wait(seconds):
+            self.assertEqual(seconds, 2)
+            self.assertEqual(phone.opened, ['1'])
+            self.assertEqual(phone.clicks, [])
+            stop.set()
+            return True
+        with tempfile.TemporaryDirectory() as d:
+            with patch.object(stop, 'wait', side_effect=stop_in_wait):
+                with self.assertRaises(Stopped):
+                    execute(phone, PROFILE, [ORIGINAL], stop, lambda _: None, Path(d))
+            self.assertEqual(phone.clicks, [])
+
+    def test_multiple_originals_keep_photo_then_style_order(self):
+        phone = FakePhone()
+        second = {**ORIGINAL, 'id': '10', 'path': ORIGINAL['path'].replace('dog', 'cat')}
+        phone.rows['10'] = second
+        with tempfile.TemporaryDirectory() as d:
+            execute(phone, PROFILE, [ORIGINAL, second], FastStop(), lambda _: None, Path(d))
+            self.assertEqual(phone.opened, ['1', '1', '10', '10'])
+            state = json.loads((Path(d) / 'progress.json').read_text())
+            self.assertEqual(list(state['done']), ['1:A', '1:B', '10:A', '10:B'])
+
     # 예전 설정에는 generate 키가 없습니다. 폰을 조작하기 전에 등록 안내로 멈춰야 합니다.
     def test_missing_generate_stops_before_phone_access(self):
         for value in ('missing', None):
@@ -154,3 +190,4 @@ class RunTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
