@@ -81,7 +81,7 @@ class App(tk.Tk):
         self.buttons = []
         self.serial = tk.StringVar()
         self.album = tk.StringVar()
-        self.status = tk.StringVar(value='USB 연결 후 [기기 찾기] 선택.')
+        self.status = tk.StringVar(value='[02 버튼 · 스타일]에서 기기 찾기 및 연결 기기 선택.')
         self.setup_theme()
         self.build_ui()
         self.style_text_widgets(self)
@@ -148,6 +148,7 @@ class App(tk.Tk):
     # 화면 구성: 왼쪽 메뉴 / 상단 현황 / 본문 / 실행 기록.
     def build_ui(self):
         c = THEME
+        self.scroll_targets = {}
         def label(parent, text='', size=10, color=None, bold=False, **kw):
             return tk.Label(parent, text=text, bg=parent.cget('background'),
                             fg=color or c['text'], font=(FONT_FAMILY, size, 'bold' if bold else 'normal'), **kw)
@@ -161,6 +162,8 @@ class App(tk.Tk):
                              exportselection=False, activestyle='none')
             bar = ttk.Scrollbar(area, command=box.yview)
             box.configure(yscrollcommand=bar.set)
+            self.scroll_targets[box] = box
+            self.scroll_targets[bar] = box
             bar.pack(side='right', fill='y')
             box.pack(side='left', fill='both', expand=True)
             return box
@@ -214,6 +217,7 @@ class App(tk.Tk):
         # 작은 화면에서는 본문 스크롤로 하단 조작 접근.
         viewport = tk.Frame(main, bg=c['background'])
         viewport.pack(fill='both', expand=True)
+        self.body_min_height = 510
         canvas = tk.Canvas(viewport, bg=c['background'], highlightthickness=0, height=510)
         scrollbar = ttk.Scrollbar(viewport, command=canvas.yview)
         scrollbar.pack(side='right', fill='y')
@@ -221,9 +225,14 @@ class App(tk.Tk):
         canvas.configure(yscrollcommand=scrollbar.set)
         deck = tk.Frame(canvas, bg=c['background'])
         window = canvas.create_window(0, 0, anchor='nw', window=deck)
-        def resize_body(event):
-            canvas.itemconfigure(window, width=event.width, height=max(510, event.height))
-            canvas.configure(scrollregion=(0, 0, event.width, max(510, event.height)))
+        self.body_canvas = canvas
+        self.scroll_targets[canvas] = canvas
+        self.scroll_targets[scrollbar] = canvas
+        def resize_body(event=None):
+            width, height = canvas.winfo_width(), max(self.body_min_height, canvas.winfo_height())
+            canvas.itemconfigure(window, width=width, height=height)
+            canvas.configure(scrollregion=(0, 0, width, height))
+        self.resize_body = resize_body
         canvas.bind('<Configure>', resize_body)
         deck.rowconfigure(0, weight=1); deck.columnconfigure(0, weight=1)
         self.pages = {}
@@ -248,11 +257,6 @@ class App(tk.Tk):
         control = Card(run)
         control.grid(row=0, column=1, sticky='nsew')
         section(control.body, '02 / EXECUTION', '작업 실행')
-        label(control.body, '연결 기기', 9, c['muted']).pack(anchor='w')
-        self.device_box = ttk.Combobox(control.body, textvariable=self.serial, state='readonly', width=15)
-        self.device_box.pack(fill='x', pady=(6, 8))
-        self.device_box.bind('<<ComboboxSelected>>', lambda _: self.clear_photos())
-        self.button(control.body, '기기 찾기', self.find_devices, fill='x')
         self.style_summary = tk.StringVar()
         label(control.body, textvariable=self.style_summary, size=9, color=c['muted'], wraplength=285, justify='left').pack(anchor='w', pady=14)
         self.button(control.body, '첫 사진 · 첫 스타일 시험', lambda: self.start(True), fill='x', pady=(0, 8))
@@ -263,8 +267,17 @@ class App(tk.Tk):
         self.button(actions, '새 작업', self.new_job, side='left', fill='x', expand=True, padx=(4, 0))
 
         settings = self.pages['settings']
-        settings.rowconfigure(0, weight=1); settings.columnconfigure(0, weight=1); settings.columnconfigure(1, weight=1)
-        mapping = Card(settings); mapping.grid(row=0, column=0, sticky='nsew', padx=(0, 12))
+        settings.rowconfigure(1, weight=1); settings.columnconfigure(0, weight=1); settings.columnconfigure(1, weight=1)
+        connection = Card(settings, height=120)
+        connection.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 12))
+        label(connection.body, '연결 기기', 12, bold=True).pack(anchor='w', pady=(0, 8))
+        device_row = tk.Frame(connection.body, bg=c['card'])
+        device_row.pack(fill='x')
+        self.device_box = ttk.Combobox(device_row, textvariable=self.serial, state='readonly', width=15)
+        self.device_box.pack(side='left', fill='x', expand=True, padx=(0, 12))
+        self.device_box.bind('<<ComboboxSelected>>', lambda _: self.clear_photos())
+        self.button(device_row, '기기 찾기', self.find_devices, side='right')
+        mapping = Card(settings); mapping.grid(row=1, column=0, sticky='nsew', padx=(0, 12))
         section(mapping.body, '01 / MAPPING', '화면 버튼 등록')
         self.button(mapping.body, '현재 폰 화면의 버튼 읽기', self.read_screen, fill='x')
         self.candidate_list = listing(mapping.body, height=3)
@@ -276,7 +289,7 @@ class App(tk.Tk):
         assignments.columnconfigure(0,weight=1); assignments.columnconfigure(1,weight=1)
         self.mapping = tk.StringVar()
         label(mapping.body, textvariable=self.mapping, size=9, color=c['muted'], wraplength=350, justify='left').pack(anchor='w', pady=(10,0))
-        styles = Card(settings); styles.grid(row=0, column=1, sticky='nsew')
+        styles = Card(settings); styles.grid(row=1, column=1, sticky='nsew')
         section(styles.body, '02 / STYLES', '스타일 구성')
         label(styles.body, '스타일 이름', 9, c['muted']).pack(anchor='w')
         self.style_name = ttk.Entry(styles.body); self.style_name.pack(fill='x', pady=(5,8))
@@ -297,9 +310,48 @@ class App(tk.Tk):
         text.configure(yscrollcommand=bar.set); text.pack(fill='both',expand=True)
         text.insert('1.0',HELP); text.configure(state='disabled')
 
+        self.scroll_targets[text] = text
+        self.scroll_targets[bar] = text
+        self.scroll_targets[self.log] = self.log
+        for sequence in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
+            self.bind_class('PhotoAssistWheel', sequence, self.on_wheel)
+        self.install_wheel(viewport)
+        self.install_wheel(self.log)
         self.show_page('run')
 
+    # 기본 위젯 처리보다 먼저 휠 처리. 목록 끝에서는 바깥 본문으로 이동.
+    def install_wheel(self, widget):
+        tag = 'PhotoAssistWheel'
+        widget.bindtags((tag,) + widget.bindtags())
+        for child in widget.winfo_children():
+            self.install_wheel(child)
+
+    def on_wheel(self, event):
+        if getattr(event, 'num', None) in (4, 5):
+            units = -3 if event.num == 4 else 3
+        else:
+            delta = getattr(event, 'delta', 0)
+            if not delta:
+                return 'break'
+            units = (-1 if delta > 0 else 1) * max(1, abs(int(delta / 120))) * 3
+        widget = event.widget
+        targets = []
+        while widget is not None:
+            target = self.scroll_targets.get(widget)
+            if target is not None and target not in targets:
+                targets.append(target)
+            widget = getattr(widget, 'master', None)
+        for target in targets:
+            first, last = target.yview()
+            if (units < 0 and first > 0) or (units > 0 and last < 1):
+                target.yview_scroll(units, 'units')
+                break
+        return 'break'
+
     def show_page(self, key):
+        self.body_min_height = 650 if key == 'settings' else 510
+        self.resize_body()
+        self.body_canvas.yview_moveto(0)
         self.pages[key].tkraise()
         for name, button in self.nav_buttons.items():
             button.configure(bg=THEME['hero'] if name==key else '#101010',
@@ -532,7 +584,7 @@ class App(tk.Tk):
 
 HELP = '''처음 한 번 · [버튼 · 스타일] 메뉴에서 등록
 1. 폰 USB 디버깅 활성화 및 PC 연결 허용.
-2. [기기 찾기]에서 대상 폰 선택.
+2. [02 버튼 · 스타일] → [기기 찾기] → 연결 기기에서 대상 폰 선택.
 3. 폰에서 원본 사진 열기 → [현재 폰 화면의 버튼 읽기] → 포토 어시스트 항목 선택 → [포토 어시스트 지정].
 4. 폰에서 포토 어시스트 진입 → 화면 읽기 → 스타일 항목 선택 → [스타일 탭 지정].
 5. 스타일 화면 읽기 → 스타일 항목 선택 → 이름·왼쪽 스와이프 횟수 입력 → 스타일 추가.
