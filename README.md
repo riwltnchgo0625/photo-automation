@@ -10,6 +10,15 @@ Python의 `uiautomator2`로 폰을 조작함. Appium·Node.js·Docker는 필요�
 - 현재 코드에는 2초 대기와 화면 누적 방지용 원본 열기 옵션이 포함돼 있음.
 - **화면 누적 수정 효과와 여러 원본·스타일 연속 실행은 실기기 확인이 남아 있음.** 코드 테스트 통과가 실기기 성공을 보장하지는 않음.
 
+## 실행 모드
+
+- 스타일: `desktop/app.py`
+- 만들기: `desktop/app(prompt).py` — 사진마다 프롬프트 3개를 순서대로 생성·저장. 매번 원본 다시 열기.
+
+같은 폴더의 최신 `app.py`와 `automation.py` 필요. 공통 UI 사용, 설정·기록은 모드별 분리.
+만들기 실행 명령: `python "app(prompt).py"`. [만들기 사용설명서](desktop/PROMPT_GUIDE.md) 참고.
+만들기 실기기 동작은 아직 미확인.
+
 ## 1. 실행 준비
 
 - Photo Assist를 사용할 수 있는 갤럭시와 데이터 전송 가능한 USB 케이블

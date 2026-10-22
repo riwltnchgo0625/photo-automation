@@ -171,6 +171,30 @@ class Phone:
             if stop.wait(0.5):
                 check_stop(stop)
 
+    # 입력창 탭 후 활성 입력칸에 문자열 교체. 입력 확인 실패 시 생성 중단.
+    def input_text(self, selector, text, stop, timeout=20):
+        self.click(selector, stop)
+        deadline = time.monotonic() + timeout
+        field = None
+        while time.monotonic() < deadline:
+            check_stop(stop)
+            nodes = [n for n in xml_root(self.screen()).iter()
+                     if visible(n) and n.get('enabled') == 'true' and n.get('focused') == 'true'
+                     and ('EditText' in n.get('class', '') or n.get('editable') == 'true')]
+            if len(nodes) > 1:
+                raise RuntimeError('활성 입력칸 중복. 입력 중단.')
+            if nodes:
+                node = nodes[0]
+                if field is None:
+                    field = self.ui(focused=True, className=node.get('class'))
+                    check_stop(stop)
+                    field.set_text(text, timeout=1)
+                elif node.get('text') == text:
+                    return
+            if stop.wait(.3):
+                check_stop(stop)
+        raise TimeoutError('프롬프트 입력 확인 실패. 입력칸 등록 및 폰 화면 확인 필요.')
+
     # 화면 너비 85% → 20% 지점을 0.5초 동안 왼쪽으로 이동. y는 등록한 스타일 높이임.
     def swipe_style(self, y, stop):
         check_stop(stop)
@@ -182,6 +206,15 @@ class Phone:
 
 # 필수 버튼·원본·스타일과 스와이프 범위를 실행 전에 확인.
 def validate(profile, originals):
+    prompt_mode = profile.get('mode') == 'prompt'
+    if prompt_mode:
+        expected = 1 if profile.get('trial') else 3
+        if len(profile.get('styles', [])) != expected:
+            raise ValueError(f'프롬프트 {expected}개 등록 필요.')
+        if not profile.get('prompt_input'):
+            raise ValueError('프롬프트 입력칸 지정 필요.')
+        if any(not s.get('prompt', '').strip() for s in profile['styles']):
+            raise ValueError('빈 프롬프트 등록 불가.')
     if not originals or not profile.get('styles'):
         raise ValueError('원본 사진 및 스타일 각각 1개 이상 선택 필요.')
     for key in ('assist', 'style_tab', 'generate', 'save'):
@@ -237,7 +270,7 @@ def execute(phone, profile, originals, stop, emit, work):
                 check_stop(stop)
             phone.click(profile['assist'], stop)
             phone.click(profile['style_tab'], stop)
-            if profile.get('more'):
+            if profile.get('mode') != 'prompt' and profile.get('more'):
                 phone.click(profile['more'], stop)
             for _ in range(style.get('swipes', 0)):
                 phone.swipe_style(style.get('swipe_y', .82), stop)
@@ -248,7 +281,10 @@ def execute(phone, profile, originals, stop, emit, work):
             if before.get(original['id']) != original:
                 raise RuntimeError('원본 정보 변경으로 실행 중단.')
             started = time.monotonic()
-            phone.click(style['selector'], stop)
+            if profile.get('mode') == 'prompt':
+                phone.input_text(profile['prompt_input'], style['prompt'], stop)
+            else:
+                phone.click(style['selector'], stop)
             # 스타일 선택 후 생성 버튼을 별도로 클릭.
             phone.click(profile['generate'], stop)
             # 생성 완료 후 저장 버튼 대기: 최대 180초. 생성이 느리면 이 값을 증가.

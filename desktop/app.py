@@ -76,14 +76,18 @@ class Card(tk.Canvas):
 
 
 class App(tk.Tk):
-    def __init__(self):
+    def __init__(self, prompt_mode=False):
         super().__init__()
-        self.title('Photo Assist · 스타일 결과 수집')
+        self.prompt_mode = prompt_mode
+        self.title('Photo Assist · ' + ('만들기' if prompt_mode else '스타일') + ' 결과 수집')
         # 창 크기: 가로 × 세로. 최소 크기는 아래 minsize에서 변경.
         width, height = map(int, WINDOW_SIZE.split('x'))
         self.minsize(1000, 640)
         self.geometry(f'{min(width, self.winfo_screenwidth()-40)}x{min(height, self.winfo_screenheight()-80)}')
         self.store = app_data()
+        if prompt_mode:
+            self.store = self.store / 'prompt'
+            self.store.mkdir(exist_ok=True)
         self.profile_path = self.store / 'buttons.json'
         # 버튼·스타일 기본값. 기존 buttons.json이 있으면 저장된 설정을 불러오기.
         self.profile = {'assist': None, 'style_tab': None, 'generate': None, 'save': None, 'more': None, 'styles': []}
@@ -92,6 +96,8 @@ class App(tk.Tk):
                 self.profile.update(json.loads(self.profile_path.read_text(encoding='utf-8')))
         except Exception as e:
             messagebox.showerror('설정 읽기 실패', str(e))
+        if prompt_mode:
+            self.profile['mode'] = 'prompt'
         self.photos, self.shown, self.candidates = {}, [], []
         self.events = queue.Queue()
         self.stop = threading.Event()
@@ -99,7 +105,7 @@ class App(tk.Tk):
         self.buttons = []
         self.serial = tk.StringVar()
         self.album = tk.StringVar()
-        self.status = tk.StringVar(value='[02 버튼 · 스타일]에서 기기 찾기 및 연결 기기 선택.')
+        self.status = tk.StringVar(value=self.wording('[02 버튼 · 스타일]에서 기기 찾기 및 연결 기기 선택.'))
         self.setup_theme()
         self.build_ui()
         self.style_text_widgets(self)
@@ -157,8 +163,11 @@ class App(tk.Tk):
                     widget.configure(disabledforeground=THEME['disabled'])
             self.style_text_widgets(widget)
 
+    def wording(self, text):
+        return text.replace('스타일', '프롬프트') if self.prompt_mode else text
+
     def button(self, parent, text, command, style='TButton', **pack):
-        b = ttk.Button(parent, text=text, command=command, style=style)
+        b = ttk.Button(parent, text=self.wording(text), command=command, style=style)
         b.pack(**pack)
         self.buttons.append(b)
         return b
@@ -168,7 +177,7 @@ class App(tk.Tk):
         c = THEME
         self.scroll_targets = {}
         def label(parent, text='', size=10, color=None, bold=False, **kw):
-            return tk.Label(parent, text=text, bg=parent.cget('background'),
+            return tk.Label(parent, text=self.wording(text), bg=parent.cget('background'),
                             fg=color or c['text'], font=(FONT_FAMILY, size, 'bold' if bold else 'normal'), **kw)
         def section(parent, eyebrow, title):
             label(parent, eyebrow, 9, c['accent'], True).pack(anchor='w')
@@ -194,7 +203,7 @@ class App(tk.Tk):
         label(sidebar, 'QA WORKSPACE', 8, c['muted']).pack(anchor='w', padx=26, pady=(6, 35))
         self.nav_buttons = {}
         for key, title in [('run', '01   결과 수집'), ('settings', '02   버튼 · 스타일'), ('help', '03   사용 가이드')]:
-            b = tk.Button(sidebar, text=title, anchor='w', relief='flat', bd=0,
+            b = tk.Button(sidebar, text=self.wording(title), anchor='w', relief='flat', bd=0,
                           bg='#101010', fg=c['muted'], activebackground=c['hero'], activeforeground=c['text'],
                           font=(FONT_FAMILY, 10), padx=16, pady=14, cursor='hand2', highlightthickness=0,
                           command=lambda k=key: self.show_page(k))
@@ -208,7 +217,7 @@ class App(tk.Tk):
         header = tk.Frame(main, bg=c['background'])
         header.pack(fill='x', pady=(0, 10))
         label(header, 'COLLECTION STUDIO', 9, c['accent'], True).pack(anchor='w')
-        label(header, 'Photo Assist', 21, bold=True).pack(anchor='w', pady=(3, 0))
+        label(header, 'Photo Assist · 만들기' if self.prompt_mode else 'Photo Assist', 21, bold=True).pack(anchor='w', pady=(3, 0))
         label(header, textvariable=self.status, size=10, color=c['muted']).pack(anchor='w', pady=(4, 0))
 
         stats = tk.Frame(sidebar, bg='#101010')
@@ -282,7 +291,7 @@ class App(tk.Tk):
         self.button(mapping.body, '현재 폰 화면의 버튼 읽기', self.read_screen, fill='x')
         self.candidate_list = listing(mapping.body, height=3)
         assignments = tk.Frame(mapping.body, bg=c['card']); assignments.pack(fill='x')
-        for i, (key, title) in enumerate([('assist','포토 어시스트'),('style_tab','스타일 탭'),('generate','생성 버튼'),('save','다른 파일로 저장')]):
+        for i, (key, title) in enumerate([('assist','포토 어시스트'),('style_tab','만들기 탭' if self.prompt_mode else '스타일 탭'),('generate','생성 버튼'),('save','다른 파일로 저장')]):
             b = ttk.Button(assignments, text=title+' 지정', command=lambda k=key: self.assign(k))
             b.grid(row=i//2, column=i%2, sticky='ew', padx=2, pady=3)
             self.buttons.append(b)
@@ -290,25 +299,31 @@ class App(tk.Tk):
         self.mapping = tk.StringVar()
         label(mapping.body, textvariable=self.mapping, size=9, color=c['muted'], wraplength=350, justify='left').pack(anchor='w', pady=(10,0))
         styles = Card(settings, scrollable=True); styles.grid(row=1, column=1, sticky='nsew')
-        section(styles.body, '02 / STYLES', '스타일 구성')
-        label(styles.body, '스타일 이름', 9, c['muted']).pack(anchor='w')
+        section(styles.body, '02 / PROMPTS' if self.prompt_mode else '02 / STYLES', '스타일 구성')
+        label(styles.body, '프롬프트 문구 · 총 3개' if self.prompt_mode else '스타일 이름', 9, c['muted']).pack(anchor='w')
         self.style_name = ttk.Entry(styles.body); self.style_name.pack(fill='x', pady=(5,8))
-        row = tk.Frame(styles.body,bg=c['card']); row.pack(fill='x')
-        label(row, '왼쪽 이동 횟수 · 처음 기준',9,c['muted']).pack(side='left')
-        self.swipes = ttk.Spinbox(row,from_=0,to=20,width=4); self.swipes.set('0'); self.swipes.pack(side='right')
-        self.button(styles.body,'선택한 버튼을 스타일로 추가',self.add_style,style='Accent.TButton',fill='x',pady=(10,0))
+        if self.prompt_mode:
+            self.button(styles.body, '프롬프트 추가', self.add_style, style='Accent.TButton', fill='x')
+        else:
+            row = tk.Frame(styles.body,bg=c['card']); row.pack(fill='x')
+            label(row, '왼쪽 이동 횟수 · 처음 기준',9,c['muted']).pack(side='left')
+            self.swipes = ttk.Spinbox(row,from_=0,to=20,width=4); self.swipes.set('0'); self.swipes.pack(side='right')
+            self.button(styles.body,'선택한 버튼을 스타일로 추가',self.add_style,style='Accent.TButton',fill='x',pady=(10,0))
         self.style_list = listing(styles.body,height=2)
         self.button(styles.body,'선택한 스타일 삭제',self.remove_style,fill='x')
         optional = tk.Frame(styles.body,bg=c['card']); optional.pack(fill='x',pady=(8,0))
-        self.button(optional,'목록 펼치기 지정',lambda:self.assign('more'),side='left')
-        self.button(optional,'해제',lambda:self.assign('more',clear=True),side='right')
+        if self.prompt_mode:
+            self.button(optional, '입력칸 지정', lambda: self.assign('prompt_input'), side='left')
+        else:
+            self.button(optional,'목록 펼치기 지정',lambda:self.assign('more'),side='left')
+            self.button(optional,'해제',lambda:self.assign('more',clear=True),side='right')
 
         help_card = Card(self.pages['help']); help_card.pack(fill='both',expand=True)
         section(help_card.body,'QUICK GUIDE','사용 가이드')
         text = tk.Text(help_card.body,wrap='word',height=5)
         bar = ttk.Scrollbar(help_card.body,command=text.yview); bar.pack(side='right',fill='y')
         text.configure(yscrollcommand=bar.set); text.pack(fill='both',expand=True)
-        text.insert('1.0',HELP); text.configure(state='disabled')
+        text.insert('1.0',PROMPT_HELP if self.prompt_mode else HELP); text.configure(state='disabled')
 
         self.scroll_targets[text] = text
         self.scroll_targets[bar] = text
@@ -366,6 +381,7 @@ class App(tk.Tk):
         self.combination_count.set(str(photos*styles))
 
     def say(self, text):
+        text = self.wording(text)
         self.status.set(text)
         self.log.configure(state='normal')
         self.log.insert('end', time.strftime('%H:%M:%S ') + text + '\n')
@@ -507,16 +523,30 @@ class App(tk.Tk):
         if save:
             save_json(self.profile_path, self.profile)
         labels = [('assist', '포토 어시스트'), ('style_tab', '스타일'), ('generate', '생성'), ('save', '저장'), ('more', '목록 펼치기')]
+        if self.prompt_mode:
+            labels = [('assist', '포토 어시스트'), ('style_tab', '만들기'), ('prompt_input', '입력칸'), ('generate', '생성'), ('save', '저장')]
         self.mapping.set(' / '.join(name + ': ' + (self.profile.get(k) or {}).get('value', '미지정') for k, name in labels))
         self.style_list.delete(0, 'end')
         for s in self.profile['styles']:
-            self.style_list.insert('end', f"{s['name']} · 왼쪽 이동 {s.get('swipes', 0)}회")
-        self.style_summary.set(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가·변경: [버튼 · 스타일] 메뉴")
+            self.style_list.insert('end', s['prompt'] if self.prompt_mode else f"{s['name']} · 왼쪽 이동 {s.get('swipes', 0)}회")
+        self.style_summary.set(self.wording(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가·변경: [버튼 · 스타일] 메뉴"))
 
         self.update_metrics()
 
     # 추가한 순서대로 실행. 스타일 이름은 완료 기록에도 사용하므로 중복을 방지.
     def add_style(self):
+        if self.prompt_mode:
+            text = self.style_name.get().strip()
+            if not text:
+                self.say('프롬프트 문구 입력 필요.'); return
+            if len(self.profile['styles']) >= 3:
+                self.say('프롬프트 최대 3개. 변경 시 기존 항목 삭제 후 추가.'); return
+            if any(s['prompt'] == text for s in self.profile['styles']):
+                self.say('동일 프롬프트 등록 상태.'); return
+            self.profile['styles'].append({'name': text, 'prompt': text})
+            self.refresh_profile(save=True)
+            self.style_name.delete(0, 'end')
+            return
         try:
             item = self.selected_candidate()
             name = self.style_name.get().strip() or item['label']
@@ -546,6 +576,8 @@ class App(tk.Tk):
             phone = self.phone()
             originals = [self.shown[i].copy() for i in self.photo_list.curselection()]
             profile = copy.deepcopy(self.profile)
+            if self.prompt_mode:
+                profile['trial'] = first_only
             if first_only:
                 originals, profile['styles'] = originals[:1], profile['styles'][:1]
             validate(profile, originals)
@@ -563,7 +595,7 @@ class App(tk.Tk):
     def new_job(self):
         path = self.store / 'progress.json'
         if path.exists():
-            if not messagebox.askyesno('새 작업', '새 작업 시작 확인.\n기존 완료 이력 보관 및 저장된 사진 유지. 동일 사진·스타일 재선택 시 중복 생성 가능.'):
+            if not messagebox.askyesno('새 작업', self.wording('새 작업 시작 확인.\n기존 완료 이력 보관 및 저장된 사진 유지. 동일 사진·스타일 재선택 시 중복 생성 가능.')):
                 return
             path.rename(self.store / f'progress_{time.time_ns()}.json')
         self.say('새 작업 준비 완료. 다음 실행 대상 원본 선택.')
@@ -581,6 +613,26 @@ class App(tk.Tk):
             return
         self.destroy()
 
+
+PROMPT_HELP = """만들기 · 프롬프트 결과 수집
+1. [02 버튼 · 프롬프트] → 기기 찾기 → 연결 기기 선택.
+2. 폰 원본 사진에서 화면 읽기 → 포토 어시스트 지정.
+3. 포토 어시스트에서 화면 읽기 → 만들기 탭 지정.
+4. 만들기 화면의 비어 있는 입력창을 화면 읽기로 선택 → 입력칸 지정.
+5. 폰에서 문구 직접 입력 → 화면 읽기 → 생성 버튼 지정.
+6. 직접 생성 완료 → 화면 읽기 → 다른 파일로 저장 지정.
+7. PC 프롬프트 문구 입력 → 추가. 서로 다른 문구 3개 등록.
+8. 결과 수집 → 사진 목록 불러오기 → 원본만 선택.
+9. 첫 사진·첫 프롬프트 시험 → 결과 확인 → 새 작업 → 전체 수집 시작.
+
+각 원본에 등록 순서대로 3개 문구 적용. 매번 원본 다시 열기.
+입력창 탭 → 기존 내용 교체 → 입력 확인 → 생성 → 다른 파일로 저장.
+생성 결과 중 처음 표시된 결과 한 장만 저장. 다른 후보 스와이프 없음.
+입력 실패·추가 팝업·저장 불명확 시 중단. 자동 생성 재시도 없음.
+프롬프트 모드의 실기기 한글 입력·저장 동작 확인 필요.
+설정·진행 기록은 기존 스타일 모드와 별도 보관.
+스타일 모드와 동시 실행 제한. 폰 잠금 해제 및 인터넷 연결 유지.
+"""
 
 HELP = '''처음 한 번 · [버튼 · 스타일] 메뉴에서 등록
 1. 폰 USB 디버깅 활성화 및 PC 연결 허용.
@@ -616,7 +668,7 @@ S26+ 한 장·3d 툰 실행 성공 보고. 여러 장 연속 실행 및 화면 �
 
 
 # EXE 패키징 검사임. 폰을 연결하는 실기기 테스트는 아님.
-def self_test():
+def self_test(prompt_mode=False):
     import adbutils
     import uiautomator2
     from lxml import etree
@@ -629,9 +681,10 @@ def self_test():
         old = os.environ.get('LOCALAPPDATA')
         os.environ['LOCALAPPDATA'] = temp
         try:
-            root = App()
-            root.update()
-            root.destroy()
+            for mode in ([True] if prompt_mode else [False, True]):
+                root = App(prompt_mode=mode)
+                root.update()
+                root.destroy()
         finally:
             if old is None:
                 os.environ.pop('LOCALAPPDATA', None)
@@ -639,13 +692,13 @@ def self_test():
                 os.environ['LOCALAPPDATA'] = old
 
 
-if __name__ == '__main__':
+def launch(prompt_mode=False):
     if sys.stdout is None:
         sys.stdout = open(os.devnull, 'w')
     if sys.stderr is None:
         sys.stderr = open(os.devnull, 'w')
     if '--self-test' in sys.argv:
-        self_test()
+        self_test(prompt_mode)
     else:
         lock = (app_data() / 'app.lock').open('a+b')
         if sys.platform == 'win32':
@@ -661,5 +714,9 @@ if __name__ == '__main__':
                 messagebox.showinfo('이미 실행 중', '기존 Photo Assist 창 사용.')
                 root.destroy()
                 sys.exit(1)
-        App().mainloop()
+        App(prompt_mode=prompt_mode).mainloop()
 
+
+
+if __name__ == '__main__':
+    launch()
