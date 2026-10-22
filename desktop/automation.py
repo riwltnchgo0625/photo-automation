@@ -204,22 +204,40 @@ class Phone:
             check_stop(stop)
 
 
-# 필수 버튼·원본·스타일과 스와이프 범위를 실행 전에 확인.
+# 같은 이름의 사진도 기기·ID·경로 기준으로 별도 연결.
+def photo_key(serial, photo):
+    return json.dumps([serial, str(photo['id']), photo['path']], ensure_ascii=False)
+
+
+def photo_tasks(profile, photo):
+    if profile.get('mode') != 'prompt':
+        return profile['styles']
+    texts = profile.get('photo_prompts', {}).get(photo_key(profile.get('prompt_serial', ''), photo), [])
+    if profile.get('trial'):
+        texts = texts[:1]
+    return [{'name': f'프롬프트 {i+1}', 'prompt': text} for i, text in enumerate(texts)]
+
+
+# 선택한 모든 원본의 문구를 폰 조작 전에 검사.
 def validate(profile, originals):
-    prompt_mode = profile.get('mode') == 'prompt'
-    if prompt_mode:
-        expected = 1 if profile.get('trial') else 3
-        if len(profile.get('styles', [])) != expected:
-            raise ValueError(f'프롬프트 {expected}개 등록 필요.')
-        if not profile.get('prompt_input'):
-            raise ValueError('프롬프트 입력칸 지정 필요.')
-        if any(not s.get('prompt', '').strip() for s in profile['styles']):
-            raise ValueError('빈 프롬프트 등록 불가.')
-    if not originals or not profile.get('styles'):
-        raise ValueError('원본 사진 및 스타일 각각 1개 이상 선택 필요.')
+    if not originals:
+        raise ValueError('원본 사진 선택 필요.')
     for key in ('assist', 'style_tab', 'generate', 'save'):
         if not profile.get(key):
             raise ValueError('버튼 설정 필요: ' + ('생성 버튼 지정' if key == 'generate' else key))
+    if profile.get('mode') == 'prompt':
+        if not profile.get('prompt_input'):
+            raise ValueError('프롬프트 입력칸 지정 필요.')
+        if not profile.get('prompt_serial'):
+            raise ValueError('프롬프트 연결 기기 정보 필요.')
+        expected = 1 if profile.get('trial') else 3
+        for photo in originals:
+            tasks = photo_tasks(profile, photo)
+            if len(tasks) != expected or any(not isinstance(t['prompt'], str) or not t['prompt'].strip() for t in tasks):
+                raise ValueError(f"{PurePosixPath(photo['path']).name}: 프롬프트 {expected}개 입력 필요.")
+        return
+    if not profile.get('styles'):
+        raise ValueError('스타일 1개 이상 등록 필요.')
     names = [s['name'] for s in profile['styles']]
     if len(names) != len(set(names)):
         raise ValueError('스타일 이름 중복.')
@@ -234,6 +252,8 @@ def validate(profile, originals):
 def execute(phone, profile, originals, stop, emit, work):
     """단일 작업 실행. 저장 여부 불명확 시 자동 재시도 없음."""
     validate(profile, originals)
+    if profile.get('mode') == 'prompt' and profile['prompt_serial'] != phone.serial:
+        raise ValueError('프롬프트 등록 기기와 실행 기기 불일치.')
     state_path = work / 'progress.json'
     # 기기·설정·원본이 바뀌면 이전 완료 기록을 섞지 않도록 새 작업을 요구.
     signature = hashlib.sha256(json.dumps({'serial': phone.serial, 'profile': profile,
@@ -252,9 +272,9 @@ def execute(phone, profile, originals, stop, emit, work):
     for record in state['done'].values():
         if current.get(record['result']['id']) != record['result']:
             raise RuntimeError('이전 저장 결과 변경. 폰에서 확인 필요.')
-    total = len(originals) * len(profile['styles'])
+    total = sum(len(photo_tasks(profile, original)) for original in originals)
     for original in originals:
-        for style in profile['styles']:
+        for style in photo_tasks(profile, original):
             key = original['id'] + ':' + style['name']
             if key in state['done']:
                 continue
@@ -298,7 +318,7 @@ def execute(phone, profile, originals, stop, emit, work):
                 # 같은 파일 정보가 연속 3번 관측되어야 저장 완료로 기록.
                 count = count + 1 if result is not None and result == previous else 0
                 if count >= 2:
-                    state['done'][key] = {'original': original, 'style': style['name'], 'result': result,
+                    state['done'][key] = {'original': original, 'style': style['name'], 'prompt': style.get('prompt'), 'result': result,
                                           'seconds': round(time.monotonic() - started, 2)}
                     state['pending'] = None
                     save_json(state_path, state)

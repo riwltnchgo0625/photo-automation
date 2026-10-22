@@ -13,7 +13,7 @@ Python의 `uiautomator2`로 폰을 조작함. Appium·Node.js·Docker는 필요�
 ## 실행 모드
 
 - 스타일: `desktop/app.py`
-- 만들기: `desktop/app(prompt).py` — 사진마다 프롬프트 3개를 순서대로 생성·저장. 매번 원본 다시 열기.
+- 만들기: `desktop/app(prompt).py` — 사진마다 개별 프롬프트 3개를 연결하여 순서대로 생성·저장. 결과 수집에서 사진 선택 후 문구 입력. 매번 원본 다시 열기.
 
 같은 폴더의 최신 `app.py`와 `automation.py` 필요. 공통 UI 사용, 설정·기록은 모드별 분리.
 만들기 실행 명령: `python "app(prompt).py"`. [만들기 사용설명서](desktop/PROMPT_GUIDE.md) 참고.

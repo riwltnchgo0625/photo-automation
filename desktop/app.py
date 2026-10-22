@@ -13,7 +13,7 @@ import traceback
 import tkinter as tk
 from tkinter import ttk, messagebox
 
-from automation import Phone, Stopped, app_data, devices, execute, save_json, screen_candidates, validate
+from automation import Phone, Stopped, app_data, devices, execute, save_json, screen_candidates, validate, photo_key
 
 
 # 디자인 수정: 색상은 THEME, 글꼴·여백·창 크기는 아래 값 변경.
@@ -98,6 +98,10 @@ class App(tk.Tk):
             messagebox.showerror('설정 읽기 실패', str(e))
         if prompt_mode:
             self.profile['mode'] = 'prompt'
+            self.profile.setdefault('photo_prompts', {})
+        self.edit_key = None
+        self.edit_photos = []
+        self.loading_editor = False
         self.photos, self.shown, self.candidates = {}, [], []
         self.events = queue.Queue()
         self.stop = threading.Event()
@@ -227,7 +231,7 @@ class App(tk.Tk):
         self.registered_count = tk.StringVar(value='0')
         self.combination_count = tk.StringVar(value='0')
         for title, var in [('선택한 원본', self.selected_count),
-                           ('등록된 스타일', self.registered_count),
+                           ('입력 문구' if self.prompt_mode else '등록된 스타일', self.registered_count),
                            ('예정 조합', self.combination_count)]:
             row = tk.Frame(stats, bg='#101010')
             row.pack(fill='x', pady=5)
@@ -260,12 +264,25 @@ class App(tk.Tk):
         self.album_box.pack(fill='x', pady=(12, 0))
         self.album_box.bind('<<ComboboxSelected>>', lambda _: self.show_album())
         self.photo_list = listing(photos.body, multiple=True)
-        self.photo_list.bind('<<ListboxSelect>>', lambda _: self.update_metrics())
+        self.photo_list.bind('<<ListboxSelect>>', lambda _: self.photo_selection_changed())
         label(photos.body, 'Ctrl / Shift로 여러 장 선택 · 원본만 선택', 9, c['muted']).pack(anchor='w')
 
-        control = Card(run)
+        control = Card(run, scrollable=self.prompt_mode)
         control.grid(row=0, column=1, sticky='nsew')
         section(control.body, '02 / EXECUTION', '작업 실행')
+        if self.prompt_mode:
+            label(control.body, '프롬프트 편집 대상', 9, c['muted']).pack(anchor='w')
+            self.prompt_photo_box = ttk.Combobox(control.body, state='readonly', width=15)
+            self.prompt_photo_box.pack(fill='x', pady=(4, 8))
+            self.prompt_photo_box.bind('<<ComboboxSelected>>', lambda _: self.load_prompt_editor())
+            self.prompt_vars = [tk.StringVar() for _ in range(3)]
+            self.prompt_entries = []
+            for i, var in enumerate(self.prompt_vars, 1):
+                label(control.body, f'프롬프트 {i}', 9, c['muted']).pack(anchor='w')
+                entry = ttk.Entry(control.body, textvariable=var, state='disabled')
+                entry.pack(fill='x', pady=(3, 6))
+                self.prompt_entries.append(entry)
+            self.button(control.body, '사진별 프롬프트 저장', self.save_photo_prompts, fill='x')
         self.style_summary = tk.StringVar()
         label(control.body, textvariable=self.style_summary, size=9, color=c['muted'], wraplength=285, justify='left').pack(anchor='w', pady=14)
         self.button(control.body, '첫 사진 · 첫 스타일 시험', lambda: self.start(True), fill='x', pady=(0, 8))
@@ -300,21 +317,26 @@ class App(tk.Tk):
         label(mapping.body, textvariable=self.mapping, size=9, color=c['muted'], wraplength=350, justify='left').pack(anchor='w', pady=(10,0))
         styles = Card(settings, scrollable=True); styles.grid(row=1, column=1, sticky='nsew')
         section(styles.body, '02 / PROMPTS' if self.prompt_mode else '02 / STYLES', '스타일 구성')
-        label(styles.body, '프롬프트 문구 · 총 3개' if self.prompt_mode else '스타일 이름', 9, c['muted']).pack(anchor='w')
-        self.style_name = ttk.Entry(styles.body); self.style_name.pack(fill='x', pady=(5,8))
         if self.prompt_mode:
-            self.button(styles.body, '프롬프트 추가', self.add_style, style='Accent.TButton', fill='x')
+            label(styles.body, '문구는 결과 수집에서 사진별로 3개 입력.\n사진 전환 시 자동 저장. 전체 실행 전 누락 검사.',
+                  10, c['muted'], wraplength=290, justify='left').pack(anchor='w', pady=12)
+            self.button(styles.body, '입력칸 지정', lambda: self.assign('prompt_input'), fill='x')
+            self.button(styles.body, '사진별 프롬프트 편집', lambda: self.show_page('run'), fill='x', pady=12)
+            if self.profile.get('styles'):
+                label(styles.body, '이전 공통 문구 · 사진별 입력에 참고', 9, c['muted']).pack(anchor='w')
+                legacy = listing(styles.body, height=3)
+                for item in self.profile['styles']:
+                    legacy.insert('end', item.get('prompt', item.get('name', '')))
         else:
+            label(styles.body, '스타일 이름', 9, c['muted']).pack(anchor='w')
+            self.style_name = ttk.Entry(styles.body); self.style_name.pack(fill='x', pady=(5,8))
             row = tk.Frame(styles.body,bg=c['card']); row.pack(fill='x')
             label(row, '왼쪽 이동 횟수 · 처음 기준',9,c['muted']).pack(side='left')
             self.swipes = ttk.Spinbox(row,from_=0,to=20,width=4); self.swipes.set('0'); self.swipes.pack(side='right')
             self.button(styles.body,'선택한 버튼을 스타일로 추가',self.add_style,style='Accent.TButton',fill='x',pady=(10,0))
-        self.style_list = listing(styles.body,height=2)
-        self.button(styles.body,'선택한 스타일 삭제',self.remove_style,fill='x')
-        optional = tk.Frame(styles.body,bg=c['card']); optional.pack(fill='x',pady=(8,0))
-        if self.prompt_mode:
-            self.button(optional, '입력칸 지정', lambda: self.assign('prompt_input'), side='left')
-        else:
+            self.style_list = listing(styles.body,height=2)
+            self.button(styles.body,'선택한 스타일 삭제',self.remove_style,fill='x')
+            optional = tk.Frame(styles.body,bg=c['card']); optional.pack(fill='x',pady=(8,0))
             self.button(optional,'목록 펼치기 지정',lambda:self.assign('more'),side='left')
             self.button(optional,'해제',lambda:self.assign('more',clear=True),side='right')
 
@@ -330,7 +352,7 @@ class App(tk.Tk):
         self.scroll_targets[self.log] = self.log
         for sequence in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
             self.bind_class('PhotoAssistWheel', sequence, self.on_wheel)
-        for card in (mapping, styles):
+        for card in ((mapping, styles, control) if self.prompt_mode else (mapping, styles)):
             self.scroll_targets[card.scroller] = card.scroller
             self.scroll_targets[card.scrollbar] = card.scroller
         self.install_wheel(deck)
@@ -374,11 +396,70 @@ class App(tk.Tk):
 
     # 화면의 선택과 등록 개수 기준. 완료 개수와 구분.
     def update_metrics(self):
-        photos = len(self.photo_list.curselection())
-        styles = len(self.profile['styles'])
-        self.selected_count.set(str(photos))
-        self.registered_count.set(str(styles))
-        self.combination_count.set(str(photos*styles))
+        selected = [self.shown[i] for i in self.photo_list.curselection()]
+        count = len(self.profile['styles'])
+        if self.prompt_mode:
+            count = sum(sum(bool(t.strip()) for t in self.profile['photo_prompts'].get(photo_key(self.serial.get(), p), [])) for p in selected)
+        self.selected_count.set(str(len(selected)))
+        self.registered_count.set(str(count))
+        self.combination_count.set(str(len(selected)*3 if self.prompt_mode else len(selected)*count))
+
+    def photo_selection_changed(self):
+        if self.prompt_mode and not self.loading_editor:
+            self.save_photo_prompts(notify=False)
+            self.edit_photos = [self.shown[i] for i in self.photo_list.curselection()]
+            self.prompt_photo_box['values'] = [f"{PurePosixPath(p['path']).name} · ID {p['id']}" for p in self.edit_photos]
+            index = next((i for i, p in enumerate(self.edit_photos) if photo_key(self.serial.get(), p) == self.edit_key), 0)
+            if self.edit_photos:
+                self.prompt_photo_box.current(index)
+            else:
+                self.prompt_photo_box.set('')
+            self.load_prompt_editor()
+        self.update_metrics()
+
+    def load_prompt_editor(self):
+        self.save_photo_prompts(notify=False)
+        index = self.prompt_photo_box.current()
+        self.edit_key = photo_key(self.serial.get(), self.edit_photos[index]) if 0 <= index < len(self.edit_photos) else None
+        texts = self.profile['photo_prompts'].get(self.edit_key, ['', '', ''])
+        for i, var in enumerate(self.prompt_vars):
+            var.set(texts[i] if i < len(texts) else '')
+        for entry in self.prompt_entries:
+            entry.configure(state='normal' if self.edit_key and not self.busy else 'disabled')
+
+    # 사진별 편집 중인 문구 저장. 부분 입력도 보관하며 실행 전 3개 검사.
+    def save_photo_prompts(self, notify=True):
+        if not self.prompt_mode or not self.edit_key:
+            return
+        texts = [v.get().strip() for v in self.prompt_vars]
+        if self.profile['photo_prompts'].get(self.edit_key) != texts:
+            updated = copy.deepcopy(self.profile)
+            updated['photo_prompts'][self.edit_key] = texts
+            save_json(self.profile_path, updated)
+            self.profile = updated
+            self.refresh_photo_rows()
+        self.update_metrics()
+        if notify:
+            self.say(f'사진별 프롬프트 저장 완료 · {sum(bool(t) for t in texts)}/3')
+
+    def refresh_photo_rows(self):
+        selected = self.photo_list.curselection()
+        active = self.photo_list.index('active')
+        top = self.photo_list.yview()[0]
+        self.loading_editor = True
+        self.photo_list.delete(0, 'end')
+        for p in self.shown:
+            suffix = ''
+            if self.prompt_mode:
+                count = sum(bool(t.strip()) for t in self.profile['photo_prompts'].get(photo_key(self.serial.get(), p), []))
+                suffix = f' · {"입력 완료" if count == 3 else "미완료"} {count}/3'
+            self.photo_list.insert('end', f"{PurePosixPath(p['path']).name} · ID {p['id']}" + suffix)
+        for i in selected:
+            self.photo_list.selection_set(i)
+        if self.shown:
+            self.photo_list.activate(min(active, len(self.shown)-1))
+        self.photo_list.yview_moveto(top)
+        self.loading_editor = False
 
     def say(self, text):
         text = self.wording(text)
@@ -398,6 +479,10 @@ class App(tk.Tk):
             button.configure(state='disabled')
         self.device_box.configure(state='disabled')
         self.album_box.configure(state='disabled')
+        if self.prompt_mode:
+            self.prompt_photo_box.configure(state='disabled')
+            for entry in self.prompt_entries:
+                entry.configure(state='disabled')
 
         def worker():
             try:
@@ -432,6 +517,10 @@ class App(tk.Tk):
                         button.configure(state='normal')
                     self.device_box.configure(state='readonly')
                     self.album_box.configure(state='readonly')
+                    if self.prompt_mode:
+                        self.prompt_photo_box.configure(state='readonly')
+                        for entry in self.prompt_entries:
+                            entry.configure(state='normal' if self.edit_key else 'disabled')
         except queue.Empty:
             pass
         finally:
@@ -457,11 +546,12 @@ class App(tk.Tk):
 
     # 기기를 바꾸면 이전 기기의 사진 선택을 초기화. 실제 파일은 삭제하지 않음.
     def clear_photos(self):
+        self.save_photo_prompts(notify=False)
         self.photos, self.shown = {}, []
         self.photo_list.delete(0, 'end')
         self.album.set('')
         self.album_box['values'] = []
-        self.update_metrics()
+        self.photo_selection_changed()
 
     def load_photos(self):
         try:
@@ -480,13 +570,12 @@ class App(tk.Tk):
 
     # 사진 실행 순서는 파일 경로 문자순임. 정렬을 바꾸려면 아래 key를 수정.
     def show_album(self):
+        self.save_photo_prompts(notify=False)
         self.shown = sorted([p for p in self.photos.values()
                              if str(PurePosixPath(p['path']).parent) == self.album.get()], key=lambda p: p['path'])
-        self.photo_list.delete(0, 'end')
-        for p in self.shown:
-            self.photo_list.insert('end', f"{PurePosixPath(p['path']).name}  · ID {p['id']}")
-
-        self.update_metrics()
+        self.photo_list.selection_clear(0, 'end')
+        self.refresh_photo_rows()
+        self.photo_selection_changed()
 
     # 현재 폰 화면에서 버튼 후보를 읽기. 화면을 바꾼 뒤 다시 읽어야 함.
     def read_screen(self):
@@ -526,27 +615,17 @@ class App(tk.Tk):
         if self.prompt_mode:
             labels = [('assist', '포토 어시스트'), ('style_tab', '만들기'), ('prompt_input', '입력칸'), ('generate', '생성'), ('save', '저장')]
         self.mapping.set(' / '.join(name + ': ' + (self.profile.get(k) or {}).get('value', '미지정') for k, name in labels))
-        self.style_list.delete(0, 'end')
-        for s in self.profile['styles']:
-            self.style_list.insert('end', s['prompt'] if self.prompt_mode else f"{s['name']} · 왼쪽 이동 {s.get('swipes', 0)}회")
-        self.style_summary.set(self.wording(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가·변경: [버튼 · 스타일] 메뉴"))
-
+        if self.prompt_mode:
+            self.style_summary.set('사진마다 문구 3개 입력 · 선택한 모든 사진의 입력 완료 여부 확인.')
+        else:
+            self.style_list.delete(0, 'end')
+            for item in self.profile['styles']:
+                self.style_list.insert('end', f"{item['name']} · 왼쪽 이동 {item.get('swipes', 0)}회")
+            self.style_summary.set(f"등록된 스타일 {len(self.profile['styles'])}개 · 추가·변경: [버튼 · 스타일] 메뉴")
         self.update_metrics()
 
     # 추가한 순서대로 실행. 스타일 이름은 완료 기록에도 사용하므로 중복을 방지.
     def add_style(self):
-        if self.prompt_mode:
-            text = self.style_name.get().strip()
-            if not text:
-                self.say('프롬프트 문구 입력 필요.'); return
-            if len(self.profile['styles']) >= 3:
-                self.say('프롬프트 최대 3개. 변경 시 기존 항목 삭제 후 추가.'); return
-            if any(s['prompt'] == text for s in self.profile['styles']):
-                self.say('동일 프롬프트 등록 상태.'); return
-            self.profile['styles'].append({'name': text, 'prompt': text})
-            self.refresh_profile(save=True)
-            self.style_name.delete(0, 'end')
-            return
         try:
             item = self.selected_candidate()
             name = self.style_name.get().strip() or item['label']
@@ -572,6 +651,7 @@ class App(tk.Tk):
 
     # first_only=True이면 첫 사진·첫 스타일만 실제 생성하고 저장.
     def start(self, first_only):
+        self.save_photo_prompts(notify=False)
         try:
             phone = self.phone()
             originals = [self.shown[i].copy() for i in self.photo_list.curselection()]
@@ -579,7 +659,14 @@ class App(tk.Tk):
             if self.prompt_mode:
                 profile['trial'] = first_only
             if first_only:
-                originals, profile['styles'] = originals[:1], profile['styles'][:1]
+                originals = originals[:1]
+                if not self.prompt_mode:
+                    profile['styles'] = profile['styles'][:1]
+            if self.prompt_mode:
+                profile['prompt_serial'] = self.serial.get()
+                keys = [photo_key(self.serial.get(), p) for p in originals]
+                profile['photo_prompts'] = {k: profile['photo_prompts'].get(k, []) for k in keys}
+                profile['styles'] = []
             validate(profile, originals)
         except ValueError as e:
             self.say(str(e)); return
@@ -611,6 +698,7 @@ class App(tk.Tk):
         if self.busy:
             self.request_stop()
             return
+        self.save_photo_prompts(notify=False)
         self.destroy()
 
 
@@ -621,11 +709,11 @@ PROMPT_HELP = """만들기 · 프롬프트 결과 수집
 4. 만들기 화면의 비어 있는 입력창을 화면 읽기로 선택 → 입력칸 지정.
 5. 폰에서 문구 직접 입력 → 화면 읽기 → 생성 버튼 지정.
 6. 직접 생성 완료 → 화면 읽기 → 다른 파일로 저장 지정.
-7. PC 프롬프트 문구 입력 → 추가. 서로 다른 문구 3개 등록.
-8. 결과 수집 → 사진 목록 불러오기 → 원본만 선택.
+7. 결과 수집 → 사진 목록 불러오기 → 원본만 선택.
+8. 오른쪽 편집 대상 사진 선택 → 프롬프트 1·2·3 입력 → 사진별 프롬프트 저장.
 9. 첫 사진·첫 프롬프트 시험 → 결과 확인 → 새 작업 → 전체 수집 시작.
 
-각 원본에 등록 순서대로 3개 문구 적용. 매번 원본 다시 열기.
+각 원본에 연결된 프롬프트 1·2·3 적용. 사진 전환·실행·정상 종료 시 편집 문구 자동 저장. 매번 원본 다시 열기.
 입력창 탭 → 기존 내용 교체 → 입력 확인 → 생성 → 다른 파일로 저장.
 생성 결과 중 처음 표시된 결과 한 장만 저장. 다른 후보 스와이프 없음.
 입력 실패·추가 팝업·저장 불명확 시 중단. 자동 생성 재시도 없음.
