@@ -49,7 +49,7 @@ class Card(tk.Canvas):
             host = self.body
             self.scroller = tk.Canvas(host, bg=self.color, highlightthickness=0)
             self.scrollbar = ttk.Scrollbar(host, command=self.scroller.yview)
-            self.scrollbar.pack(side='right', fill='y')
+            self.scrollbar.pack(side='right', fill='y', padx=(14, 0))
             self.scroller.pack(side='left', fill='both', expand=True)
             self.scroller.configure(yscrollcommand=self.scrollbar.set)
             self.body = tk.Frame(self.scroller, bg=self.color)
