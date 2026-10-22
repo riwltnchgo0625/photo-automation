@@ -216,8 +216,8 @@ class App(tk.Tk):
         main.pack(side='left', fill='both', expand=True, padx=PAGE_PAD, pady=PAGE_PAD)
         header = tk.Frame(main, bg=c['background'])
         header.pack(fill='x', pady=(0, 10))
-        label(header, 'COLLECTION STUDIO', 9, c['accent'], True).pack(anchor='w')
-        label(header, 'Photo Assist · 만들기' if self.prompt_mode else 'Photo Assist', 21, bold=True).pack(anchor='w', pady=(3, 0))
+        label(header, 'PHOTO ASSIST', 9, c['accent'], True).pack(anchor='w')
+        label(header, '만들기' if self.prompt_mode else '스타일', 30, bold=True).pack(anchor='w', pady=(3, 0))
         label(header, textvariable=self.status, size=10, color=c['muted']).pack(anchor='w', pady=(4, 0))
 
         stats = tk.Frame(sidebar, bg='#101010')
