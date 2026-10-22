@@ -38,12 +38,30 @@ CARD_RADIUS = 22
 
 # 둥근 카드: 테두리는 Canvas, 내부 배치는 Frame에서 처리.
 class Card(tk.Canvas):
-    def __init__(self, parent, color=None, **kwargs):
+    def __init__(self, parent, color=None, scrollable=False, **kwargs):
         self.color = color or THEME['card']
         super().__init__(parent, background=THEME['background'], highlightthickness=0, **kwargs)
         self.body = tk.Frame(self, background=self.color)
         self.window = self.create_window(18, 16, anchor='nw', window=self.body)
         self.bind('<Configure>', self.redraw)
+        if scrollable:
+            # 카드 내부만 스크롤. 본문 전체는 창 크기에 맞춰 고정.
+            host = self.body
+            self.scroller = tk.Canvas(host, bg=self.color, highlightthickness=0)
+            self.scrollbar = ttk.Scrollbar(host, command=self.scroller.yview)
+            self.scrollbar.pack(side='right', fill='y')
+            self.scroller.pack(side='left', fill='both', expand=True)
+            self.scroller.configure(yscrollcommand=self.scrollbar.set)
+            self.body = tk.Frame(self.scroller, bg=self.color)
+            inner = self.scroller.create_window(0, 0, anchor='nw', window=self.body)
+            def fit(event=None):
+                width = self.scroller.winfo_width()
+                height = max(self.scroller.winfo_height(), self.body.winfo_reqheight(), 440)
+                self.scroller.itemconfigure(inner, width=width, height=height)
+                self.scroller.configure(scrollregion=(0, 0, width, height))
+            self.scroller.bind('<Configure>', fit)
+            self.body.bind('<Configure>', fit)
+
 
     def redraw(self, event):
         w, h, r = event.width-1, event.height-1, CARD_RADIUS
@@ -188,52 +206,34 @@ class App(tk.Tk):
         main = tk.Frame(self, bg=c['background'])
         main.pack(side='left', fill='both', expand=True, padx=PAGE_PAD, pady=PAGE_PAD)
         header = tk.Frame(main, bg=c['background'])
-        header.pack(fill='x', pady=(0, 16))
+        header.pack(fill='x', pady=(0, 10))
         label(header, 'COLLECTION STUDIO', 9, c['accent'], True).pack(anchor='w')
-        label(header, 'Photo Assist', 25, bold=True).pack(anchor='w', pady=(3, 0))
+        label(header, 'Photo Assist', 21, bold=True).pack(anchor='w', pady=(3, 0))
         label(header, textvariable=self.status, size=10, color=c['muted']).pack(anchor='w', pady=(4, 0))
 
-        stats = tk.Frame(main, bg=c['background'])
-        stats.pack(fill='x', pady=(0, 16))
+        stats = tk.Frame(sidebar, bg='#101010')
+        stats.pack(fill='x', padx=24, pady=(24, 0))
+        label(stats, '작업 현황', 9, c['muted']).pack(anchor='w', pady=(0, 8))
         self.selected_count = tk.StringVar(value='0')
         self.registered_count = tk.StringVar(value='0')
         self.combination_count = tk.StringVar(value='0')
-        for i, (title, var, color) in enumerate([
-                ('선택한 원본', self.selected_count, c['accent']),
-                ('등록된 스타일', self.registered_count, '#D4D4D4'),
-                ('예정 조합', self.combination_count, '#A3A3A3')]):
-            stats.columnconfigure(i, weight=1, uniform='stats')
-            card = Card(stats, height=94)
-            card.grid(row=0, column=i, sticky='ew', padx=(0 if i==0 else 6, 0 if i==2 else 6))
-            label(card.body, title, 9, c['muted']).pack(anchor='w')
-            label(card.body, textvariable=var, size=23, color=color, bold=True).pack(anchor='w')
+        for title, var in [('선택한 원본', self.selected_count),
+                           ('등록된 스타일', self.registered_count),
+                           ('예정 조합', self.combination_count)]:
+            row = tk.Frame(stats, bg='#101010')
+            row.pack(fill='x', pady=5)
+            label(row, title, 9, c['muted']).pack(side='left')
+            label(row, textvariable=var, size=15, bold=True).pack(side='right')
 
-        activity = Card(main,height=132); activity.pack(side='bottom',fill='x',pady=(14,0)); activity.pack_propagate(False)
+        activity = Card(main,height=115); activity.pack(side='bottom',fill='x',pady=(14,0)); activity.pack_propagate(False)
         line = tk.Frame(activity.body,bg=c['card']); line.pack(fill='x')
         label(line,'ACTIVITY / 실행 기록',9,c['muted'],True).pack(side='left')
         self.button(line,'기록 폴더',self.open_records,side='right')
         self.log = tk.Text(activity.body,height=2,state='disabled',wrap='word'); self.log.pack(fill='both',expand=True,pady=(6,0))
 
-        # 작은 화면에서는 본문 스크롤로 하단 조작 접근.
-        viewport = tk.Frame(main, bg=c['background'])
-        viewport.pack(fill='both', expand=True)
-        self.body_min_height = 510
-        canvas = tk.Canvas(viewport, bg=c['background'], highlightthickness=0, height=510)
-        scrollbar = ttk.Scrollbar(viewport, command=canvas.yview)
-        scrollbar.pack(side='right', fill='y')
-        canvas.pack(side='left', fill='both', expand=True)
-        canvas.configure(yscrollcommand=scrollbar.set)
-        deck = tk.Frame(canvas, bg=c['background'])
-        window = canvas.create_window(0, 0, anchor='nw', window=deck)
-        self.body_canvas = canvas
-        self.scroll_targets[canvas] = canvas
-        self.scroll_targets[scrollbar] = canvas
-        def resize_body(event=None):
-            width, height = canvas.winfo_width(), max(self.body_min_height, canvas.winfo_height())
-            canvas.itemconfigure(window, width=width, height=height)
-            canvas.configure(scrollregion=(0, 0, width, height))
-        self.resize_body = resize_body
-        canvas.bind('<Configure>', resize_body)
+        # 전체 페이지 스크롤 없이 남은 창 영역 사용.
+        deck = tk.Frame(main, bg=c['background'])
+        deck.pack(fill='both', expand=True)
         deck.rowconfigure(0, weight=1); deck.columnconfigure(0, weight=1)
         self.pages = {}
         for key in ('run', 'settings', 'help'):
@@ -268,16 +268,16 @@ class App(tk.Tk):
 
         settings = self.pages['settings']
         settings.rowconfigure(1, weight=1); settings.columnconfigure(0, weight=1); settings.columnconfigure(1, weight=1)
-        connection = Card(settings, height=120)
+        connection = Card(settings, height=78)
         connection.grid(row=0, column=0, columnspan=2, sticky='ew', pady=(0, 12))
-        label(connection.body, '연결 기기', 12, bold=True).pack(anchor='w', pady=(0, 8))
         device_row = tk.Frame(connection.body, bg=c['card'])
-        device_row.pack(fill='x')
+        device_row.pack(fill='both', expand=True)
+        label(device_row, '연결 기기', 10, bold=True).pack(side='left', padx=(0, 14))
         self.device_box = ttk.Combobox(device_row, textvariable=self.serial, state='readonly', width=15)
         self.device_box.pack(side='left', fill='x', expand=True, padx=(0, 12))
         self.device_box.bind('<<ComboboxSelected>>', lambda _: self.clear_photos())
         self.button(device_row, '기기 찾기', self.find_devices, side='right')
-        mapping = Card(settings); mapping.grid(row=1, column=0, sticky='nsew', padx=(0, 12))
+        mapping = Card(settings, scrollable=True); mapping.grid(row=1, column=0, sticky='nsew', padx=(0, 12))
         section(mapping.body, '01 / MAPPING', '화면 버튼 등록')
         self.button(mapping.body, '현재 폰 화면의 버튼 읽기', self.read_screen, fill='x')
         self.candidate_list = listing(mapping.body, height=3)
@@ -289,7 +289,7 @@ class App(tk.Tk):
         assignments.columnconfigure(0,weight=1); assignments.columnconfigure(1,weight=1)
         self.mapping = tk.StringVar()
         label(mapping.body, textvariable=self.mapping, size=9, color=c['muted'], wraplength=350, justify='left').pack(anchor='w', pady=(10,0))
-        styles = Card(settings); styles.grid(row=1, column=1, sticky='nsew')
+        styles = Card(settings, scrollable=True); styles.grid(row=1, column=1, sticky='nsew')
         section(styles.body, '02 / STYLES', '스타일 구성')
         label(styles.body, '스타일 이름', 9, c['muted']).pack(anchor='w')
         self.style_name = ttk.Entry(styles.body); self.style_name.pack(fill='x', pady=(5,8))
@@ -315,11 +315,14 @@ class App(tk.Tk):
         self.scroll_targets[self.log] = self.log
         for sequence in ('<MouseWheel>', '<Button-4>', '<Button-5>'):
             self.bind_class('PhotoAssistWheel', sequence, self.on_wheel)
-        self.install_wheel(viewport)
+        for card in (mapping, styles):
+            self.scroll_targets[card.scroller] = card.scroller
+            self.scroll_targets[card.scrollbar] = card.scroller
+        self.install_wheel(deck)
         self.install_wheel(self.log)
         self.show_page('run')
 
-    # 기본 위젯 처리보다 먼저 휠 처리. 목록 끝에서는 바깥 본문으로 이동.
+    # 기본 위젯 처리보다 먼저 휠 처리. 목록 끝에서는 해당 카드 내부로 이동.
     def install_wheel(self, widget):
         tag = 'PhotoAssistWheel'
         widget.bindtags((tag,) + widget.bindtags())
@@ -349,9 +352,6 @@ class App(tk.Tk):
         return 'break'
 
     def show_page(self, key):
-        self.body_min_height = 650 if key == 'settings' else 510
-        self.resize_body()
-        self.body_canvas.yview_moveto(0)
         self.pages[key].tkraise()
         for name, button in self.nav_buttons.items():
             button.configure(bg=THEME['hero'] if name==key else '#101010',
